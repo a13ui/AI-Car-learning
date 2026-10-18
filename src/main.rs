@@ -20,8 +20,8 @@ use ggez::input::keyboard::KeyInput;
 use winit::keyboard::{Key, NamedKey};
 use std::f32::consts::PI;
 
-const RAY_MAX: f32 = 1024.0;
-const RAY_STEP: f32 = 8.0;
+const RAY_MAX: f32 = 512.0;
+const RAY_STEP: f32 = 4.0;
 
 const PROGRESSION_SCORE: f32 = 1.0;
 const LAP_SCORE_SPEED: f32 = 1.0;
@@ -45,7 +45,7 @@ fn main() {
     track.render("target/debug/resources/track.png");
     
     let mut bots = Vec::new();
-    for _i in 0..256 {
+    for _i in 0..128 {
         bots.push(
             AICar {
                 car: Car {
@@ -56,16 +56,17 @@ fn main() {
                     base_tyre_grip: 500.0,
                     power: 250.0,
                     drag_coeff: 1.0 / 1000.0,
-                    turn_radius: 75.0,
+                    turn_radius: 50.0,
                     downforce_coeff: 1.0 / 3000.0,
 
                     image: graphics::Image::from_path(&mut ctx, "/car.png").unwrap(),
                 },
-                network: Network::new(vec![11, 8, 8, 2], vec![Function::Relu, Function::Relu, Function::Tanh]),
+                network: Network::new(vec![10, 6, 6, 2], vec![Function::Relu, Function::Relu, Function::Tanh]),
                 score: 0.0,
                 alive: false,
                 distance_traveled: 0.0,
                 progress: 0.0,
+                laps: 0,
             }
         );
     }
@@ -83,18 +84,21 @@ fn main() {
 
 impl ggez::event::EventHandler for State {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
-        let dt = ctx.time.delta().as_secs_f32();
-        self.time_since_start += dt;
-        for bot in &mut self.bots {
-            if !bot.alive {
-                continue;
+        while ctx.time.check_update_time(60) {
+            let dt = 1.0 / 60.0;
+            self.time_since_start += dt;
+            for bot in &mut self.bots {
+                if !bot.alive {
+                    continue;
+                }
+                bot.update(&self.track, self.time_since_start, dt);
             }
-            bot.update(&self.track, self.time_since_start, dt);
+
+            if self.bots.iter().all(|bot| !bot.alive || (bot.car.velocity < 25.0 && self.time_since_start > 1.0) || bot.laps > 5) {
+                self.reset();
+            }
         }
 
-        if self.bots.iter().all(|bot| !bot.alive || bot.car.velocity < 10.0) {
-            self.reset();
-        }
         Ok(())
     }
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
@@ -106,9 +110,10 @@ impl ggez::event::EventHandler for State {
         }
         canvas.finish(ctx)
     }
-    fn key_down_event(&mut self, _ctx: &mut Context, input: KeyInput, repeated: bool) -> Result<(), GameError> {
-        if !repeated && input.event.logical_key == Key::Named(NamedKey::Space) {
-            self.reset();
+    fn key_down_event(&mut self, _ctx: &mut Context, input: KeyInput, repeated: bool) -> GameResult {
+        match input.event.logical_key {
+            Key::Named(NamedKey::Space) if !repeated => self.reset(),
+            _ => {}
         }
         Ok(())
     }
@@ -118,8 +123,8 @@ impl State {
     fn reset(&mut self) {
         self.bots.sort_by(|a, b| b.score.total_cmp(&a.score));
 
-        for i in (32..self.bots.len()).rev() {
-            self.bots[i].network = self.bots[i % 32].network.vary();
+        for i in (16..self.bots.len()).rev() {
+            self.bots[i].network = self.bots[i % 16].network.vary();
         }
 
         let position = self.track.track.start_finish.get_point(0.0);
@@ -127,10 +132,12 @@ impl State {
         for bot in &mut self.bots {
             bot.car.position = position;
             bot.car.rotation = bearing;
+            bot.car.velocity = 0.0;
             bot.score = 0.0;
             bot.alive = true;
             bot.distance_traveled = 0.0;
             bot.progress = 0.0;
+            bot.laps = 0;
         }
         self.time_since_start = 0.0;
     }
@@ -169,7 +176,7 @@ impl GameTrack {
             }
             near = far;
         }
-        RAY_MAX
+        1.0
     }
 }
 struct AICar {
@@ -179,6 +186,7 @@ struct AICar {
     alive: bool,
     distance_traveled: f32,
     progress: f32,
+    laps: i32,
 }
 impl AICar {
     fn update(&mut self, track: &GameTrack, time_since_start: f32, dt: f32) {
@@ -186,13 +194,13 @@ impl AICar {
 
         inputs.push(self.car.velocity / 500.0);
 
-        for i in 0..=9 {
-            let angle = self.car.rotation - PI / 2.0 + PI * i as f32 / 9.0;
+        for i in 0..=8 {
+            let angle = self.car.rotation - PI / 2.0 + PI * i as f32 / 8.0;
             inputs.push(track.ray(self.car.position, angle));
         }
 
         let out = self.network.run(&inputs);
-        let controls = CarControl { turn: out[0], accelerate: out[1].max(0.0), brake: (-out[1]).min(0.0)};
+        let controls = CarControl { turn: out[0], accelerate: out[1].max(0.0), brake: (-out[1]).max(0.0)};
 
         self.car.update(controls, dt);
         self.distance_traveled += self.car.velocity * dt;
@@ -206,7 +214,9 @@ impl AICar {
         let last_progress = self.progress;
         self.progress = track.track.get_progression(self.car.position);
         if last_progress > 0.875 && self.progress < 0.125 {
+            self.laps += 1;
             self.score += (self.distance_traveled / time_since_start) * LAP_SCORE_SPEED;
+            self.score += 1.0;
         }
         self.score += (self.progress - last_progress) * PROGRESSION_SCORE;
     }

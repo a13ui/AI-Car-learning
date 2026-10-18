@@ -45,11 +45,14 @@ impl Car {
 
         let lateral_delta = rotation_delta.abs() * self.velocity.abs();
         
+        let mut multiplier = 1.0;
         if (lateral_delta * lateral_delta + velocity_delta * velocity_delta) < grip * grip {
-            self.velocity += velocity_delta * dt;
-            self.velocity = self.velocity.max(0.0);
-            self.rotation += rotation_delta * dt;
+            multiplier /= 2.0;
         }
+
+        self.velocity += velocity_delta * dt * multiplier;
+        self.velocity = self.velocity.max(0.0);
+        self.rotation += rotation_delta * dt * multiplier;
         self.position += Vec2::from_bearing(self.rotation) * self.velocity * dt;
     }
     pub fn draw(&self, canvas: &mut graphics::Canvas) {

@@ -12,6 +12,7 @@ pub struct Track {
     pub radius: f32,
     pub start_finish: LineSegment,
     pub segments: Vec<LineSegment>,
+    pub length: f32,
 }
 
 impl Track {
@@ -39,34 +40,50 @@ impl Track {
         let second_line = lines.next().unwrap().unwrap();
         let mut second_line_words = second_line.split(" ");
 
-        let start_finish = LineSegment::Streight(StreightLine {
-            start: Vec2 { x: next(&mut second_line_words), y: next(&mut second_line_words)},
-            end: Vec2 { x: next(&mut second_line_words), y: next(&mut second_line_words)},
+        let start = Vec2 { x: next(&mut second_line_words), y: next(&mut second_line_words)};
+        let end =  Vec2 { x: next(&mut second_line_words), y: next(&mut second_line_words)};
+        let start_finish_length = (end - start).length();
+        let start_finish = LineSegment::Streight( StreightLine {
+            start,
+            end,
+            length: start_finish_length,
         });
-
+        let mut total_length = start_finish_length;
         let mut segments = Vec::new();
         for line_res in lines {
             let line = line_res.unwrap();
             let mut line_words = line.split(" ");
             match line_words.next().unwrap() {
                 "line" => {
+                    let start = Vec2 { x: next(&mut line_words), y: next(&mut line_words)};
+                    let end =  Vec2 { x: next(&mut line_words), y: next(&mut line_words)};
+                    let length = (end - start).length();
                     segments.push(LineSegment::Streight( StreightLine {
-                        start: Vec2 { x: next(&mut line_words), y: next(&mut line_words)},
-                        end: Vec2 { x: next(&mut line_words), y: next(&mut line_words)},
+                        start,
+                        end,
+                        length,
                     }));
+                    total_length += length;
                 }
                 "radial" => {
+                    let centre = Vec2 { x: next(&mut line_words), y: next(&mut line_words)};
+                    let radius = next(&mut line_words);
+                    let start_bearing = next(&mut line_words);
+                    let size = next(&mut line_words);
+                    let length = size.abs() * radius;
                     segments.push(LineSegment::Radial( RadialLine {
-                        centre: Vec2 { x: next(&mut line_words), y: next(&mut line_words)},
-                        radius: next(&mut line_words),
-                        start_bearing: next(&mut line_words),
-                        size: next(&mut line_words),
+                        centre,
+                        radius,
+                        start_bearing,
+                        size,
+                        length,
                     }));
+                    total_length += length;
                 }
                 _ => { }
             }
         }
-        Track { radius, start_finish, segments }
+        Track { radius, start_finish, segments, length: total_length }
     }
     pub fn render(&self, to: &str) {
         let mut image = ImageBuffer::from_pixel(1920, 1080, Rgba([0u8, 0, 0, 255]));
@@ -107,20 +124,16 @@ impl Track {
         false
     }
     pub fn get_progression(&self, point: Vec2) -> f32 {
-        let total_segments = 1.0 + self.segments.len() as f32;
-
-        let mut segments = 0.0;
-
         if self.start_finish.contains(point, self.radius) {
-            return self.start_finish.get_progression(point) / total_segments;
+            return self.start_finish.get_progression(point) * self.start_finish.get_length() / self.length;
         }
-        segments += 1.0;
+        let mut distance = self.start_finish.get_length();
 
         for segment in &self.segments {
             if segment.contains(point, self.radius) {
-                return (segments + segment.get_progression(point)) / total_segments;
+                return (distance + segment.get_progression(point) * segment.get_length()) / self.length;
             }
-            segments += 1.0;
+            distance += segment.get_length();
         }
 
         panic!("point given was not on the track")
@@ -186,6 +199,7 @@ pub enum LineSegment {
 pub struct StreightLine {
     start: Vec2,
     end: Vec2,
+    length: f32,
 }
 
 pub struct RadialLine {
@@ -193,6 +207,7 @@ pub struct RadialLine {
     radius: f32,
     start_bearing: f32,
     size: f32,
+    length: f32,
 }
 
 impl LineSegment {
@@ -299,6 +314,16 @@ impl LineSegment {
 
                 relative / arc
             },
+        }
+    }
+    fn get_length(&self) -> f32 {
+        match  self {
+            LineSegment::Streight(line) => {
+                line.length
+            },
+            LineSegment::Radial(line) => {
+                line.length
+            },   
         }
     }
 }
