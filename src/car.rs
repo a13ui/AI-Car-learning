@@ -12,6 +12,7 @@ pub struct Car {
     pub drag_coeff: f32,
     pub turn_radius: f32,
     pub downforce_coeff: f32,
+    pub hitpoints: Vec<Vec2>,
 
     pub image: graphics::Image,
 }

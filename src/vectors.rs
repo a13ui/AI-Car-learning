@@ -22,7 +22,7 @@ impl Vec2 {
     pub fn length(&self) -> f32 { 
         (self.x * self.x + self.y * self.y).sqrt()
     }
-    pub fn interpolate(self, other: Self, t: f32) -> Self{
+    pub fn interpolate(self, other: Self, t: f32) -> Self {
         self + (other - self) * t
     }
     pub fn normalize(self) -> Self {
@@ -31,6 +31,14 @@ impl Vec2 {
         }
         else {
             self / self.length()
+        }
+    }
+    pub fn rotate(self, rotation: f32) -> Self {
+        let cos = (-rotation).cos();
+        let sin = (-rotation).sin();
+        Vec2 {
+            x: self.x * cos - self.y * sin,
+            y: self.x * sin + self.y * cos,
         }
     }
 }

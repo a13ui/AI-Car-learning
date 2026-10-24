@@ -58,6 +58,7 @@ fn main() {
                     drag_coeff: 1.0 / 1000.0,
                     turn_radius: 50.0,
                     downforce_coeff: 1.0 / 3000.0,
+                    hitpoints: vec![Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
 
                     image: graphics::Image::from_path(&mut ctx, "/car.png").unwrap(),
                 },
@@ -94,7 +95,7 @@ impl ggez::event::EventHandler for State {
                 bot.update(&self.track, self.time_since_start, dt);
             }
 
-            if self.bots.iter().all(|bot| !bot.alive || (bot.car.velocity < 25.0 && self.time_since_start > 1.0) || bot.laps > 5) {
+            if self.bots.iter().all(|bot| !bot.alive || (bot.car.velocity < 25.0 && self.time_since_start > 1.0) || bot.laps > 3) {
                 self.reset();
             }
         }
@@ -157,7 +158,7 @@ impl GameTrack {
         canvas.draw(&self.image, graphics::DrawParam::default());
     }
     fn collide(&self, car: &Car) -> bool {
-        self.track.contains(car.position)
+        car.hitpoints.iter().all(|point| self.track.contains(car.position + point.rotate(car.rotation)))
     }
     fn ray(&self, from: Vec2, bearing: f32) -> f32 {
         let dir = Vec2::from_bearing(bearing);
