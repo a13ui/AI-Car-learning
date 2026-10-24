@@ -1,3 +1,4 @@
-estableish better values to max ray range and max speed.
+Establish better global values for max ray range and max speed.
+Separate car states from state.
 
-use four points as the cars hitbox -
+Use four points as the cars hitbox. -
