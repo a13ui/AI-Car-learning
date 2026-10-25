@@ -4,7 +4,7 @@ mod car_control;
 mod car;
 mod track;
 
-use car::Car;
+use car::{Car, CarStats};
 
 use track::Track;
 
@@ -52,14 +52,14 @@ fn main() {
                     position: track.start_finish.get_point(0.0),
                     rotation: track.start_finish.get_bearing(0.0),
                     velocity: 0.0,
-
-                    base_tyre_grip: 500.0,
-                    power: 250.0,
-                    drag_coeff: 1.0 / 1000.0,
-                    turn_radius: 50.0,
-                    downforce_coeff: 1.0 / 3000.0,
-                    hitpoints: vec![Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
-
+                    stats: CarStats {
+                        base_tyre_grip: 500.0,
+                        power: 250.0,
+                        drag_coeff: 1.0 / 1000.0,
+                        turn_radius: 50.0,
+                        downforce_coeff: 1.0 / 3000.0,
+                        hitpoints: vec![Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
+                    },
                     image: graphics::Image::from_path(&mut ctx, "/car.png").unwrap(),
                 },
                 network: Network::new(vec![10, 6, 6, 2], vec![Function::Relu, Function::Relu, Function::Tanh]),
@@ -158,7 +158,7 @@ impl GameTrack {
         canvas.draw(&self.image, graphics::DrawParam::default());
     }
     fn collide(&self, car: &Car) -> bool {
-        car.hitpoints.iter().all(|point| self.track.contains(car.position + point.rotate(car.rotation)))
+        car.stats.hitpoints.iter().all(|point| self.track.contains(car.position + point.rotate(car.rotation)))
     }
     fn ray(&self, from: Vec2, bearing: f32) -> f32 {
         let dir = Vec2::from_bearing(bearing);

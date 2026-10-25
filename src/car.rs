@@ -7,20 +7,23 @@ pub struct Car {
     pub rotation: f32,
     pub velocity: f32,
 
+    pub stats: CarStats,
+
+    pub image: graphics::Image,
+}
+pub struct CarStats {
     pub base_tyre_grip: f32,
     pub power: f32,
     pub drag_coeff: f32,
     pub turn_radius: f32,
     pub downforce_coeff: f32,
     pub hitpoints: Vec<Vec2>,
-
-    pub image: graphics::Image,
 }
 
 impl Car {
     pub fn update(&mut self, controls: CarControl, dt: f32) {
         let velocity_squared = self.velocity * self.velocity;
-        let grip = self.base_tyre_grip + self.downforce_coeff * velocity_squared;
+        let grip = self.stats.base_tyre_grip + self.stats.downforce_coeff * velocity_squared;
 
         let travel_dir = if self.velocity > 0.0 {
             1.0
@@ -33,7 +36,7 @@ impl Car {
         let mut rotation_delta = 0.0;
 
         if self.velocity != 0.0 {
-            let radius = (velocity_squared / grip).max(self.turn_radius);
+            let radius = (velocity_squared / grip).max(self.stats.turn_radius);
             let rad_sec = self.velocity / radius;
             rotation_delta += controls.turn * rad_sec;
         }
@@ -41,8 +44,8 @@ impl Car {
         let mut velocity_delta = 0.0;
 
         velocity_delta -= travel_dir * controls.brake * grip;
-        velocity_delta -= travel_dir * velocity_squared * self.drag_coeff;
-        velocity_delta += controls.accelerate * self.power;
+        velocity_delta -= travel_dir * velocity_squared * self.stats.drag_coeff;
+        velocity_delta += controls.accelerate * self.stats.power;
 
         let lateral_delta = rotation_delta.abs() * self.velocity.abs();
         
