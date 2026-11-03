@@ -175,24 +175,8 @@ impl GameTrack {
     fn collide(&self, car: &Car) -> bool {
         car.stats.hitpoints.iter().all(|point| self.track.contains(car.position + point.rotate(car.rotation)))
     }
-    fn ray(&self, from: Vec2, bearing: f32) -> f32 {
-        let dir = Vec2::from_bearing(bearing);
-        let inside = |d: f32| self.track.contains(from + dir * d);
-
-        let mut near = 0.0;
-        while near < RAY_MAX {
-            let far = (near + RAY_STEP).min(RAY_MAX);
-            if !inside(far) {
-                let (mut lo, mut hi) = (near, far);
-                for _ in 0..6 {
-                    let mid = (lo + hi) / 2.0;
-                    if inside(mid) { lo = mid } else { hi = mid }
-                }
-                return lo / RAY_MAX;
-            }
-            near = far;
-        }
-        1.0
+    fn ray(&self, from: Vec2, bearing: f32) -> Option<f32> {
+        // HERE
     }
 }
 struct AICar {

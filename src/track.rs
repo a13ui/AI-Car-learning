@@ -106,6 +106,9 @@ impl Track {
 
         panic!("point given was not on the track")
     }
+    pub fn collide_ray(&self, origin: Vec2, direction: Vec2) -> Option<f32> {
+        // HERE
+    }
 }
 
 fn read_line(total_length: &mut f32, line: String) -> LineSegment {
@@ -266,13 +269,13 @@ impl LineSegment {
             },
         } 
     }
-    fn contains(&self, point: Vec2, radius: f32) -> bool {
+    fn contains(&self, point: Vec2, track_radius: f32) -> bool {
         match self {
             LineSegment::Streight(line) => {
                 let dir = line.end - line.start;
                 let len_sq = dir.lengthsq();
                 if len_sq == 0.0 {
-                    return (point - line.start).lengthsq() <= radius * radius;
+                    return (point - line.start).lengthsq() <= track_radius * track_radius;
                 }
                 let rel = point - line.start;
                 let t = (rel.x * dir.x + rel.y * dir.y) / len_sq;
@@ -281,12 +284,12 @@ impl LineSegment {
                 }
 
                 let closest = line.start + dir * t;
-                (point - closest).lengthsq() <= radius * radius
+                (point - closest).lengthsq() <= track_radius * track_radius
             },
             LineSegment::Radial(line) => {
                 let offset = point - line.centre;
 
-                if (offset.length() - line.radius).abs() > radius {
+                if (offset.length() - line.radius).abs() > track_radius {
                     return false;
                 }
                 let relative_bearing =
@@ -326,6 +329,16 @@ impl LineSegment {
             LineSegment::Radial(line) => {
                 line.length
             },   
+        }
+    }
+    fn collide_ray(&self, origin: Vec2, direction: Vec2, track_radius: f32) -> Option<f32> {
+        match self {
+            LineSegment::Streight(line) => {
+                // HERE
+            },
+            LineSegment::Radial(line) => {
+                // HERE
+            },
         }
     }
 }
