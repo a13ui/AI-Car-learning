@@ -22,7 +22,6 @@ use std::f32::consts::PI;
 use ggez::conf::FullscreenType;
 
 const RAY_MAX: f32 = 512.0;
-const RAY_STEP: f32 = 4.0;
 
 const PROGRESSION_SCORE: f32 = 1.0;
 const LAP_SCORE_SPEED: f32 = 1.0;
@@ -175,8 +174,10 @@ impl GameTrack {
     fn collide(&self, car: &Car) -> bool {
         car.stats.hitpoints.iter().all(|point| self.track.contains(car.position + point.rotate(car.rotation)))
     }
-    fn ray(&self, from: Vec2, bearing: f32) -> Option<f32> {
-        // HERE
+    fn ray(&self, from: Vec2, bearing: f32) -> f32 {
+        self.track
+            .collide_ray(from, Vec2::from_bearing(bearing))
+            .map_or(0.0, |distance| distance.min(RAY_MAX) / RAY_MAX)
     }
 }
 struct AICar {

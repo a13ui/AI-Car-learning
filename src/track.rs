@@ -8,6 +8,9 @@ const HALF_PI: f32 = std::f32::consts::PI / 2.0;
 const PI: f32 = std::f32::consts::PI;
 const TAU: f32 = std::f32::consts::PI * 2.0;
 
+const MAX_RAY_HOPS: usize = 64;
+const RAY_EPSILON: f32 = 1e-3;
+
 pub struct Track {
     pub radius: f32,
     pub start_finish: LineSegment,
@@ -107,7 +110,19 @@ impl Track {
         panic!("point given was not on the track")
     }
     pub fn collide_ray(&self, origin: Vec2, direction: Vec2) -> Option<f32> {
-        // HERE
+        let mut travelled = 0.0;
+        for _ in 0..MAX_RAY_HOPS {
+            let point = origin + direction * travelled;
+            // Segments abut at their joints, so leaving one usually means entering the next.
+            let exit = std::iter::once(&self.start_finish)
+                .chain(&self.segments)
+                .find_map(|segment| segment.collide_ray(point, direction, self.radius));
+            match exit {
+                Some(distance) => travelled += distance + RAY_EPSILON,
+                None => return (travelled > 0.0).then_some(travelled),
+            }
+        }
+        Some(travelled)
     }
 }
 
@@ -144,9 +159,6 @@ fn read_line(total_length: &mut f32, line: String) -> LineSegment {
     }
 }
 
-fn flip_vec2(input: Vec2) -> Vec2 {
-    Vec2 { x: input.x, y: 1080.0 - input.y}
-}
 fn next(line_words: &mut std::str::Split<'_, &str>) -> f32 {
     line_words.next().unwrap().parse::<f32>().unwrap()
 }
@@ -331,16 +343,53 @@ impl LineSegment {
             },   
         }
     }
-    fn collide_ray(&self, origin: Vec2, direction: Vec2, track_radius: f32) -> Option<f32> {
-        match self {
-            LineSegment::Streight(line) => {
-                // HERE
-            },
-            LineSegment::Radial(line) => {
-                // HERE
-            },
+fn collide_ray(&self, origin: Vec2, direction: Vec2, track_radius: f32) -> Option<f32> {
+    if !self.contains(origin, track_radius) {
+        return None;
+    }
+    match self {
+        LineSegment::Streight(line) => {
+            if line.length == 0.0 {
+                return None;
+            }
+            let along = (line.end - line.start) / line.length;
+            let across = Vec2 { x: -along.y, y: along.x };
+            let rel = origin - line.start;
+
+            let t_along = slab_exit(rel.dot(along), direction.dot(along), 0.0, line.length);
+            let t_across = slab_exit(rel.dot(across), direction.dot(across), -track_radius, track_radius);
+            Some(t_along.min(t_across))
+        }
+        LineSegment::Radial(line) => {
+            let q = origin - line.centre;
+            let b = q.dot(direction);
+            let q_sq = q.lengthsq();
+            let mut exit = f32::INFINITY;
+
+            let outer = line.radius + track_radius;
+            exit = exit.min(-b + (b * b - (q_sq - outer * outer)).max(0.0).sqrt());
+
+            let inner = line.radius - track_radius;
+            let disc = b * b - (q_sq - inner * inner);
+            if inner > 0.0 && b < 0.0 && disc >= 0.0 {
+                exit = exit.min(-b - disc.sqrt());
+            }
+
+            for edge in [line.start_bearing, line.start_bearing + line.size] {
+                let edge_dir = Vec2::from_bearing(edge);
+                let denom = direction.cross(edge_dir);
+                if denom.abs() < f32::EPSILON {
+                    continue;
+                }
+                let t = -q.cross(edge_dir) / denom;
+                if t > 0.0 && (q + direction * t).dot(edge_dir) >= 0.0 {
+                    exit = exit.min(t);
+                }
+            }
+            Some(exit)
         }
     }
+}
 }
 
 struct LineEnding {
@@ -348,7 +397,21 @@ struct LineEnding {
     bearing: f32,
 }
 
+fn flip_vec2(input: Vec2) -> Vec2 {
+    Vec2 { x: input.x, y: 1080.0 - input.y}
+}
+
 fn connects(a: LineEnding, b: LineEnding) -> bool {
     let diff = (a.bearing - b.bearing).rem_euclid(TAU);
     (a.position - b.position).lengthsq() < 1.0 && (diff - PI).abs() < HALF_PI / 8.0
+}
+
+fn slab_exit(pos: f32, vel: f32, lo: f32, hi: f32) -> f32 {
+    if vel > 0.0 {
+        (hi - pos) / vel
+    } else if vel < 0.0 {
+        (lo - pos) / vel
+    } else {
+        f32::INFINITY
+    }
 }
