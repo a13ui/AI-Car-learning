@@ -13,6 +13,7 @@ pub struct Track {
     pub start_finish: LineSegment,
     pub segments: Vec<LineSegment>,
     pub length: f32,
+    pub start_position: f32,
 }
 
 impl Track {
@@ -38,52 +39,19 @@ impl Track {
         let radius = first_line.parse::<f32>().unwrap();
 
         let second_line = lines.next().unwrap().unwrap();
-        let mut second_line_words = second_line.split(" ");
+        let start_position = second_line.parseguit::<f32>().unwrap();
 
-        let start = Vec2 { x: next(&mut second_line_words), y: next(&mut second_line_words)};
-        let end =  Vec2 { x: next(&mut second_line_words), y: next(&mut second_line_words)};
-        let start_finish_length = (end - start).length();
-        let start_finish = LineSegment::Streight( StreightLine {
-            start,
-            end,
-            length: start_finish_length,
-        });
-        let mut total_length = start_finish_length;
+        let mut total_length = 0.0;
+
+        let third_line = lines.next().unwrap().unwrap();
+        let start_finish = read_line(&mut total_length, third_line);
+
         let mut segments = Vec::new();
         for line_res in lines {
             let line = line_res.unwrap();
-            let mut line_words = line.split(" ");
-            match line_words.next().unwrap() {
-                "line" => {
-                    let start = Vec2 { x: next(&mut line_words), y: next(&mut line_words)};
-                    let end =  Vec2 { x: next(&mut line_words), y: next(&mut line_words)};
-                    let length = (end - start).length();
-                    segments.push(LineSegment::Streight( StreightLine {
-                        start,
-                        end,
-                        length,
-                    }));
-                    total_length += length;
-                }
-                "radial" => {
-                    let centre = Vec2 { x: next(&mut line_words), y: next(&mut line_words)};
-                    let radius = next(&mut line_words);
-                    let start_bearing = next(&mut line_words);
-                    let size = next(&mut line_words);
-                    let length = size.abs() * radius;
-                    segments.push(LineSegment::Radial( RadialLine {
-                        centre,
-                        radius,
-                        start_bearing,
-                        size,
-                        length,
-                    }));
-                    total_length += length;
-                }
-                _ => { }
-            }
+            segments.push(read_line(&mut total_length, line));
         }
-        Track { radius, start_finish, segments, length: total_length }
+        Track { radius, start_finish, segments, length: total_length, start_position }
     }
     pub fn render(&self, to: &str) {
         let mut image = ImageBuffer::from_pixel(1920, 1080, Rgba([0u8, 0, 0, 255]));
@@ -139,6 +107,40 @@ impl Track {
         panic!("point given was not on the track")
     }
 }
+
+fn read_line(total_length: &mut f32, line: String) -> LineSegment {
+    let mut line_words = line.split(" ");
+    match line_words.next().unwrap() {
+        "line" => {
+            let start = Vec2 { x: next(&mut line_words), y: next(&mut line_words)};
+            let end =  Vec2 { x: next(&mut line_words), y: next(&mut line_words)};
+            let length = (end - start).length();
+            *total_length += length;
+            LineSegment::Streight( StreightLine {
+                start,
+                end,
+                length,
+            })
+        }
+        "radial" => {
+            let centre = Vec2 { x: next(&mut line_words), y: next(&mut line_words)};
+            let radius = next(&mut line_words);
+            let start_bearing = next(&mut line_words);
+            let size = next(&mut line_words);
+            let length = size.abs() * radius;
+            *total_length += length;
+            LineSegment::Radial( RadialLine {
+                centre,
+                radius,
+                start_bearing,
+                size,
+                length,
+            })
+        }
+        _ => { panic!("unrecoginest line type") }
+    }
+}
+
 fn flip_vec2(input: Vec2) -> Vec2 {
     Vec2 { x: input.x, y: 1080.0 - input.y}
 }

@@ -128,8 +128,8 @@ impl State {
             self.bots[i].network = self.bots[i % 16].network.vary();
         }
 
-        let position = self.track.track.start_finish.get_point(0.0);
-        let bearing = self.track.track.start_finish.get_bearing(0.0);
+        let position = self.track.track.start_finish.get_point(self.track.track.start_position);
+        let bearing = self.track.track.start_finish.get_bearing(self.track.track.start_position);
         for bot in &mut self.bots {
             bot.car.position = position;
             bot.car.rotation = bearing;
