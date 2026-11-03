@@ -19,12 +19,14 @@ use ggez::graphics::Color;
 use ggez::input::keyboard::KeyInput;
 use winit::keyboard::{Key, NamedKey};
 use std::f32::consts::PI;
+use ggez::conf::FullscreenType;
 
 const RAY_MAX: f32 = 512.0;
 const RAY_STEP: f32 = 4.0;
 
 const PROGRESSION_SCORE: f32 = 1.0;
 const LAP_SCORE_SPEED: f32 = 1.0;
+const SLIDE_PENALTY: f32 = 1.0;
 fn main() {
     let c = conf::Conf {
         window_mode: conf::WindowMode {
@@ -40,8 +42,7 @@ fn main() {
         .unwrap();
 
 
-    let track = Track::from_file("track.txt");
-    assert!(track.validate());
+    let track = Track::from_file("tracks/3.txt");
     track.render("target/debug/resources/track.png");
     
     let mut bots = Vec::new();
@@ -49,8 +50,8 @@ fn main() {
         bots.push(
             AICar {
                 car: Car {
-                    position: track.start_finish.get_point(0.0),
-                    rotation: track.start_finish.get_bearing(0.0),
+                    position: track.start_finish.get_point(track.start_position),
+                    rotation: track.start_finish.get_bearing(track.start_position),
                     velocity: 0.0,
                     stats: CarStats {
                         base_tyre_grip: 500.0,
@@ -58,7 +59,7 @@ fn main() {
                         drag_coeff: 1.0 / 1000.0,
                         turn_radius: 50.0,
                         downforce_coeff: 1.0 / 3000.0,
-                        hitpoints: vec![Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
+                        hitpoints: vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
                     },
                     image: graphics::Image::from_path(&mut ctx, "/car.png").unwrap(),
                 },
@@ -78,6 +79,7 @@ fn main() {
         },
         bots,
         time_since_start: 0.0,
+        is_fullscreen: false,
     }; 
 
     let _ = event::run(ctx, event_loop, state); 
@@ -111,12 +113,24 @@ impl ggez::event::EventHandler for State {
         }
         canvas.finish(ctx)
     }
-    fn key_down_event(&mut self, _ctx: &mut Context, input: KeyInput, repeated: bool) -> GameResult {
+    fn key_down_event(&mut self, ctx: &mut Context, input: KeyInput, repeated: bool) -> GameResult {
         match input.event.logical_key {
             Key::Named(NamedKey::Space) if !repeated => self.reset(),
-            _ => {}
+        Key::Named(NamedKey::F11) if !repeated => {
+            self.is_fullscreen = !self.is_fullscreen;
+            
+            let fullscreen_type = if self.is_fullscreen {
+                FullscreenType::Desktop
+            } else {
+                FullscreenType::Windowed
+            };
+            
+            ctx.gfx.set_fullscreen(fullscreen_type)?;
         }
-        Ok(())
+        
+        _ => {}
+    }
+    Ok(())
     }
 }
 
@@ -148,6 +162,7 @@ struct State {
     track: GameTrack,
     bots: Vec<AICar>,
     time_since_start: f32,
+    is_fullscreen: bool,
 }
 struct GameTrack {
     track: Track,
@@ -203,7 +218,9 @@ impl AICar {
         let out = self.network.run(&inputs);
         let controls = CarControl { turn: out[0], accelerate: out[1].max(0.0), brake: (-out[1]).max(0.0)};
 
-        self.car.update(controls, dt);
+        if !self.car.update(controls, dt) {
+            self.score -= SLIDE_PENALTY * dt;
+        }
         self.distance_traveled += self.car.velocity * dt;
 
         if !track.collide(&self.car) {

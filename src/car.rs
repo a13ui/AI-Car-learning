@@ -21,7 +21,7 @@ pub struct CarStats {
 }
 
 impl Car {
-    pub fn update(&mut self, controls: CarControl, dt: f32) {
+    pub fn update(&mut self, controls: CarControl, dt: f32) -> bool {
         let velocity_squared = self.velocity * self.velocity;
         let grip = self.stats.base_tyre_grip + self.stats.downforce_coeff * velocity_squared;
 
@@ -41,23 +41,27 @@ impl Car {
             rotation_delta += controls.turn * rad_sec;
         }
 
+        let lateral_delta = rotation_delta.abs() * self.velocity.abs();
+
         let mut velocity_delta = 0.0;
 
         velocity_delta -= travel_dir * controls.brake * grip;
         velocity_delta -= travel_dir * velocity_squared * self.stats.drag_coeff;
         velocity_delta += controls.accelerate * self.stats.power;
 
-        let lateral_delta = rotation_delta.abs() * self.velocity.abs();
         
-        let mut multiplier = 1.0;
-        if (lateral_delta * lateral_delta + velocity_delta * velocity_delta) < grip * grip {
-            multiplier /= 2.0;
+        if (lateral_delta * lateral_delta + velocity_delta * velocity_delta) > grip * grip {
+            self.position += Vec2::from_bearing(self.rotation) * self.velocity * dt;
+            false
+        }
+        else {
+            self.velocity += velocity_delta * dt;
+            self.velocity = self.velocity.max(0.0);
+            self.rotation += rotation_delta * dt;
+            self.position += Vec2::from_bearing(self.rotation) * self.velocity * dt;
+            true
         }
 
-        self.velocity += velocity_delta * dt * multiplier;
-        self.velocity = self.velocity.max(0.0);
-        self.rotation += rotation_delta * dt * multiplier;
-        self.position += Vec2::from_bearing(self.rotation) * self.velocity * dt;
     }
     pub fn draw(&self, canvas: &mut graphics::Canvas) {
         canvas.draw(&self.image, graphics::DrawParam::default()

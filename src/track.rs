@@ -39,7 +39,7 @@ impl Track {
         let radius = first_line.parse::<f32>().unwrap();
 
         let second_line = lines.next().unwrap().unwrap();
-        let start_position = second_line.parseguit::<f32>().unwrap();
+        let start_position = second_line.parse::<f32>().unwrap();
 
         let mut total_length = 0.0;
 
