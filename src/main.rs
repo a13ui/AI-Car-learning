@@ -25,7 +25,7 @@ const RAY_MAX: f32 = 512.0;
 
 const PROGRESSION_SCORE: f32 = 1.0;
 const LAP_SCORE_SPEED: f32 = 1.0;
-const SLIDE_PENALTY: f32 = 1.0;
+const SLIDE_PENALTY: f32 = 10.0;
 fn main() {
     let c = conf::Conf {
         window_mode: conf::WindowMode {
@@ -41,7 +41,7 @@ fn main() {
         .unwrap();
 
 
-    let track = Track::from_file("tracks/3.txt");
+    let track = Track::from_file("tracks/5.txt");
     track.render("target/debug/resources/track.png");
     
     let mut bots = Vec::new();
@@ -59,6 +59,7 @@ fn main() {
                         turn_radius: 50.0,
                         downforce_coeff: 1.0 / 3000.0,
                         hitpoints: vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
+                        top_speed: (250.0 / (1.0 / 1000.0) as f32).sqrt(),
                     },
                     image: graphics::Image::from_path(&mut ctx, "/car.png").unwrap(),
                 },
@@ -180,6 +181,7 @@ impl GameTrack {
             .map_or(0.0, |distance| distance.min(RAY_MAX) / RAY_MAX)
     }
 }
+
 struct AICar {
     car: Car,
     network: Network,
@@ -189,11 +191,12 @@ struct AICar {
     progress: f32,
     laps: i32,
 }
+
 impl AICar {
     fn update(&mut self, track: &GameTrack, time_since_start: f32, dt: f32) {
         let mut inputs= Vec::new();
 
-        inputs.push(self.car.velocity / 500.0);
+        inputs.push(self.car.velocity / self.car.stats.top_speed);
 
         for i in 0..=8 {
             let angle = self.car.rotation - PI / 2.0 + PI * i as f32 / 8.0;

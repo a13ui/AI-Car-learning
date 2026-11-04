@@ -18,6 +18,8 @@ pub struct CarStats {
     pub turn_radius: f32,
     pub downforce_coeff: f32,
     pub hitpoints: Vec<Vec2>,
+    
+    pub top_speed: f32,
 }
 
 impl Car {
@@ -70,5 +72,10 @@ impl Car {
             .scale([1.0, 1.0])
             .rotation(self.rotation),
         );
+    }
+}
+impl CarStats {
+    pub fn top_speed(&self) -> f32 {
+        (self.power / self.drag_coeff).sqrt()
     }
 }
