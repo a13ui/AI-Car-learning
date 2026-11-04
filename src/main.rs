@@ -23,9 +23,9 @@ use ggez::conf::FullscreenType;
 
 const RAY_MAX: f32 = 512.0;
 
-const PROGRESSION_SCORE: f32 = 1.0;
-const LAP_SCORE_SPEED: f32 = 1.0;
-const SLIDE_PENALTY: f32 = 10.0;
+const PROGRESSION_SCORE: f32 = 1.0; // score made per lap of progression
+const LAP_SCORE_SPEED: f32 = 100.0; // score made per lap divided by lap time in seconds
+const SLIDE_PENALTY: f32 = 10.0; // penalty for traction limit per second
 fn main() {
     let c = conf::Conf {
         window_mode: conf::WindowMode {
@@ -39,7 +39,6 @@ fn main() {
         .default_conf(c)
         .build()
         .unwrap();
-
 
     let track = Track::from_file("tracks/5.txt");
     track.render("target/debug/resources/track.png");
@@ -69,6 +68,7 @@ fn main() {
                 distance_traveled: 0.0,
                 progress: 0.0,
                 laps: 0,
+                time_since_last_lap: 0.0,
             }
         );
     }
@@ -80,6 +80,7 @@ fn main() {
         bots,
         time_since_start: 0.0,
         is_fullscreen: false,
+        fps: 60.0,
     }; 
 
     let _ = event::run(ctx, event_loop, state); 
@@ -87,17 +88,17 @@ fn main() {
 
 impl ggez::event::EventHandler for State {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
-        while ctx.time.check_update_time(60) {
+        while ctx.time.check_update_time(self.fps as u32) {
             let dt = 1.0 / 60.0;
             self.time_since_start += dt;
             for bot in &mut self.bots {
                 if !bot.alive {
                     continue;
                 }
-                bot.update(&self.track, self.time_since_start, dt);
+                bot.update(&self.track, dt);
             }
 
-            if self.bots.iter().all(|bot| !bot.alive || (bot.car.velocity < 25.0 && self.time_since_start > 1.0) || bot.laps > 3) {
+            if self.bots.iter().all(|bot| !bot.alive || (bot.car.velocity < 25.0 && self.time_since_start > 1.0) || bot.laps >= 3) {
                 self.reset();
             }
         }
@@ -116,18 +117,23 @@ impl ggez::event::EventHandler for State {
     fn key_down_event(&mut self, ctx: &mut Context, input: KeyInput, repeated: bool) -> GameResult {
         match input.event.logical_key {
             Key::Named(NamedKey::Space) if !repeated => self.reset(),
-        Key::Named(NamedKey::F11) if !repeated => {
-            self.is_fullscreen = !self.is_fullscreen;
-            
-            let fullscreen_type = if self.is_fullscreen {
-                FullscreenType::Desktop
-            } else {
-                FullscreenType::Windowed
-            };
-            
-            ctx.gfx.set_fullscreen(fullscreen_type)?;
-        }
-        
+            Key::Named(NamedKey::F11) if !repeated => {
+                self.is_fullscreen = !self.is_fullscreen;
+                
+                let fullscreen_type = if self.is_fullscreen {
+                    FullscreenType::Desktop
+                } else {
+                    FullscreenType::Windowed
+                };
+                
+                ctx.gfx.set_fullscreen(fullscreen_type)?;
+            }
+            Key::Named(NamedKey::ArrowDown) if !repeated => {
+                self.fps = 60.0;
+            },
+            Key::Named(NamedKey::ArrowUp) if !repeated => {
+                self.fps = 240.0;
+            }
         _ => {}
     }
     Ok(())
@@ -153,6 +159,7 @@ impl State {
             bot.distance_traveled = 0.0;
             bot.progress = 0.0;
             bot.laps = 0;
+            bot.time_since_last_lap = 0.0;
         }
         self.time_since_start = 0.0;
     }
@@ -161,8 +168,9 @@ impl State {
 struct State {
     track: GameTrack,
     bots: Vec<AICar>,
-    time_since_start: f32,
     is_fullscreen: bool,
+    time_since_start: f32,
+    fps: f32,
 }
 struct GameTrack {
     track: Track,
@@ -190,10 +198,12 @@ struct AICar {
     distance_traveled: f32,
     progress: f32,
     laps: i32,
+
+    time_since_last_lap: f32,
 }
 
 impl AICar {
-    fn update(&mut self, track: &GameTrack, time_since_start: f32, dt: f32) {
+    fn update(&mut self, track: &GameTrack, dt: f32) {
         let mut inputs= Vec::new();
 
         inputs.push(self.car.velocity / self.car.stats.top_speed);
@@ -217,12 +227,15 @@ impl AICar {
             return;
         }
 
+        self.time_since_last_lap += dt;
+
         let last_progress = self.progress;
         self.progress = track.track.get_progression(self.car.position);
         if last_progress > 0.875 && self.progress < 0.125 {
             self.laps += 1;
-            self.score += (self.distance_traveled / time_since_start) * LAP_SCORE_SPEED;
+            self.score += LAP_SCORE_SPEED / self.time_since_last_lap;
             self.score += 1.0;
+            self.time_since_last_lap = 0.0;
         }
         self.score += (self.progress - last_progress) * PROGRESSION_SCORE;
     }
