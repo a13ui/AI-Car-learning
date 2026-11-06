@@ -40,7 +40,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let track = Track::from_file("tracks/5.txt");
+    let track = Track::from_file("tracks/7.txt");
     track.render("target/debug/resources/track.png");
     
     let mut bots = Vec::new();
@@ -62,7 +62,7 @@ fn main() {
                     },
                     image: graphics::Image::from_path(&mut ctx, "/car.png").unwrap(),
                 },
-                network: Network::new(vec![10, 6, 6, 2], vec![Function::Relu, Function::Relu, Function::Tanh]),
+                network: Network::new(vec![10, 5, 5, 2], vec![Function::Relu, Function::Relu, Function::Tanh]),
                 score: 0.0,
                 alive: false,
                 distance_traveled: 0.0,

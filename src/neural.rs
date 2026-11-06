@@ -1,7 +1,7 @@
 use rand::RngExt;
 
 const MUTATION_RATE: f32 = 0.1;
-const MUTATION_SCALE: f32 = 0.5;
+const MUTATION_SCALE: f32 = 1.0;
 
 pub struct Network {
     pub layers: Vec<Layer>,
@@ -194,5 +194,5 @@ fn crossover(a: f32, b: f32) -> f32 {
 }
 fn ran_param() -> f32 {
     let mut rng = rand::rng();
-    ((1.0 / (1.0 - rng.random::<f32>())) - 1.0).ln()
+    rng.random::<f32>() * 2.0 - 1.0
 }
