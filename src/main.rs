@@ -40,7 +40,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let track = Track::from_file("tracks/7.txt");
+    let track = Track::from_file("tracks/2.txt");
     track.render("target/debug/resources/track.png");
     
     let mut bots = Vec::new();
@@ -132,7 +132,10 @@ impl ggez::event::EventHandler for State {
                 self.fps = 60.0;
             },
             Key::Named(NamedKey::ArrowUp) if !repeated => {
-                self.fps = 240.0;
+                if self.fps > 60.0 { self.fps -= 60.0; };
+            }
+            Key::Named(NamedKey::ArrowLeft) if !repeated => {
+                self.fps += 60.0;
             }
         _ => {}
     }
