@@ -14,7 +14,7 @@ use car_control::*;
 
 use vectors::Vec2;
 
-use ggez::*;
+use ggez::{input::keyboard, *};
 use ggez::graphics::Color;
 use ggez::input::keyboard::KeyInput;
 use winit::keyboard::{Key, NamedKey};
@@ -23,9 +23,9 @@ use ggez::conf::FullscreenType;
 
 const RAY_MAX: f32 = 512.0;
 
-const PROGRESSION_SCORE: f32 = 1.0; // score made per lap of progression
-const LAP_SCORE_SPEED: f32 = 100.0; // score made per lap divided by lap time in seconds
-const SLIDE_PENALTY: f32 = 10.0; // penalty for traction limit per second
+const PROGRESSION_SCORE: f32 = 100.0; // score made per lap of progression
+const LAP_SCORE_SPEED: f32 = 500.0; // score made per lap divided by lap time in seconds
+const SLIDE_PENALTY: f32 = 1.0; // penalty for traction limit per second
 fn main() {
     let c = conf::Conf {
         window_mode: conf::WindowMode {
@@ -40,7 +40,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let track = Track::from_file("tracks/2.txt");
+    let track = Track::from_file("tracks/1.txt");
     track.render("target/debug/resources/track.png");
     
     let mut bots = Vec::new();
@@ -56,7 +56,7 @@ fn main() {
                         power: 250.0,
                         drag_coeff: 1.0 / 1000.0,
                         turn_radius: 50.0,
-                        downforce_coeff: 1.0 / 3000.0,
+                        downforce_coeff: 1.0 / 2000.0,
                         hitpoints: vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
                         top_speed: (250.0 / (1.0 / 1000.0) as f32).sqrt(),
                     },
@@ -78,6 +78,23 @@ fn main() {
             image: graphics::Image::from_path(&mut ctx, "/track.png").unwrap(),
         },
         bots,
+        player: PlayerCar {
+            car: Car {
+                position: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+                velocity: 0.0,
+                stats: CarStats {
+                    base_tyre_grip: 500.0,
+                    power: 250.0,
+                    drag_coeff: 1.0 / 1000.0,
+                    turn_radius: 50.0,
+                    downforce_coeff: 1.0 / 2000.0,
+                    hitpoints: vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
+                    top_speed: (250.0 / (1.0 / 1000.0) as f32).sqrt(),
+                },
+                image: graphics::Image::from_path(&mut ctx, "/car.png").unwrap(),
+            },
+        },
         time_since_start: 0.0,
         is_fullscreen: false,
         fps: 60.0,
@@ -90,6 +107,7 @@ impl ggez::event::EventHandler for State {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         while ctx.time.check_update_time(self.fps as u32) {
             let dt = 1.0 / 60.0;
+            self.player.update(&mut ctx.keyboard, dt);
             self.time_since_start += dt;
             for bot in &mut self.bots {
                 if !bot.alive {
@@ -99,7 +117,7 @@ impl ggez::event::EventHandler for State {
             }
 
             if self.bots.iter().all(|bot| !bot.alive || (bot.car.velocity < 25.0 && self.time_since_start > 1.0) || bot.laps >= 3) {
-                self.reset();
+                self.next_generation();
             }
         }
 
@@ -112,11 +130,13 @@ impl ggez::event::EventHandler for State {
         for bot in &self.bots {
             bot.draw(&mut canvas);
         }
+
+        self.player.draw(&mut canvas);        
         canvas.finish(ctx)
     }
     fn key_down_event(&mut self, ctx: &mut Context, input: KeyInput, repeated: bool) -> GameResult {
         match input.event.logical_key {
-            Key::Named(NamedKey::Space) if !repeated => self.reset(),
+            Key::Named(NamedKey::Space) if !repeated => self.next_generation(),
             Key::Named(NamedKey::F11) if !repeated => {
                 self.is_fullscreen = !self.is_fullscreen;
                 
@@ -128,13 +148,13 @@ impl ggez::event::EventHandler for State {
                 
                 ctx.gfx.set_fullscreen(fullscreen_type)?;
             }
-            Key::Named(NamedKey::ArrowDown) if !repeated => {
+            Key::Named(NamedKey::ArrowLeft) if !repeated => {
                 self.fps = 60.0;
             },
-            Key::Named(NamedKey::ArrowUp) if !repeated => {
+            Key::Named(NamedKey::ArrowDown) if !repeated => {
                 if self.fps > 60.0 { self.fps -= 60.0; };
             }
-            Key::Named(NamedKey::ArrowLeft) if !repeated => {
+            Key::Named(NamedKey::ArrowUp) if !repeated => {
                 self.fps += 60.0;
             }
         _ => {}
@@ -144,7 +164,7 @@ impl ggez::event::EventHandler for State {
 }
 
 impl State {
-    fn reset(&mut self) {
+    fn next_generation(&mut self) {
         self.bots.sort_by(|a, b| b.score.total_cmp(&a.score));
 
         for i in (16..self.bots.len()).rev() {
@@ -153,6 +173,10 @@ impl State {
 
         let position = self.track.track.start_finish.get_point(self.track.track.start_position);
         let bearing = self.track.track.start_finish.get_bearing(self.track.track.start_position);
+
+        self.player.car.position = position;
+        self.player.car.rotation = bearing;
+        self.player.car.velocity = 0.0;
         for bot in &mut self.bots {
             bot.car.position = position;
             bot.car.rotation = bearing;
@@ -164,6 +188,7 @@ impl State {
             bot.laps = 0;
             bot.time_since_last_lap = 0.0;
         }
+
         self.time_since_start = 0.0;
     }
 }
@@ -171,6 +196,7 @@ impl State {
 struct State {
     track: GameTrack,
     bots: Vec<AICar>,
+    player: PlayerCar,
     is_fullscreen: bool,
     time_since_start: f32,
     fps: f32,
@@ -211,9 +237,10 @@ impl AICar {
 
         inputs.push(self.car.velocity / self.car.stats.top_speed);
 
+        let ray_start = self.car.position + Vec2 {x: 0.0, y: 20.0};
         for i in 0..=8 {
             let angle = self.car.rotation - PI / 2.0 + PI * i as f32 / 8.0;
-            inputs.push(track.ray(self.car.position, angle));
+            inputs.push(track.ray(ray_start, angle));
         }
 
         let out = self.network.run(&inputs);
@@ -234,13 +261,28 @@ impl AICar {
 
         let last_progress = self.progress;
         self.progress = track.track.get_progression(self.car.position);
+
+        let delta = (self.progress - last_progress + 0.5).rem_euclid(1.0) - 0.5;
+        self.score += delta * PROGRESSION_SCORE;
+
         if last_progress > 0.875 && self.progress < 0.125 {
             self.laps += 1;
             self.score += LAP_SCORE_SPEED / self.time_since_last_lap;
-            self.score += 1.0;
             self.time_since_last_lap = 0.0;
         }
-        self.score += (self.progress - last_progress) * PROGRESSION_SCORE;
+
+    }
+    fn draw(&self, canvas: &mut graphics::Canvas) {
+        self.car.draw(canvas);
+    }
+}
+
+struct PlayerCar {
+    car: Car,
+}
+impl PlayerCar {
+    fn update(&mut self, keyboard: &mut keyboard::KeyboardContext, dt: f32) {
+        self.car.update(keyboard_control(keyboard), dt);
     }
     fn draw(&self, canvas: &mut graphics::Canvas) {
         self.car.draw(canvas);
