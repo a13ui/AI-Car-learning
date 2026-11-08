@@ -17,9 +17,10 @@ use vectors::Vec2;
 use ggez::{input::keyboard, *};
 use ggez::graphics::Color;
 use ggez::input::keyboard::KeyInput;
-use winit::keyboard::{Key, NamedKey};
+use winit::keyboard::{Key, NamedKey, SmolStr};
 use std::f32::consts::PI;
 use ggez::conf::FullscreenType;
+use input::keyboard::KeyboardContext;
 
 const RAY_MAX: f32 = 512.0;
 
@@ -51,15 +52,7 @@ fn main() {
                     position: track.start_finish.get_point(track.start_position),
                     rotation: track.start_finish.get_bearing(track.start_position),
                     velocity: 0.0,
-                    stats: CarStats {
-                        base_tyre_grip: 500.0,
-                        power: 250.0,
-                        drag_coeff: 1.0 / 1000.0,
-                        turn_radius: 50.0,
-                        downforce_coeff: 1.0 / 2000.0,
-                        hitpoints: vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
-                        top_speed: (250.0 / (1.0 / 1000.0) as f32).sqrt(),
-                    },
+                    stats: CarStats::f2004(),
                     image: graphics::Image::from_path(&mut ctx, "/car.png").unwrap(),
                 },
                 network: Network::new(vec![10, 5, 5, 2], vec![Function::Relu, Function::Relu, Function::Tanh]),
@@ -83,17 +76,10 @@ fn main() {
                 position: Vec2 { x: 0.0, y: 0.0 },
                 rotation: 0.0,
                 velocity: 0.0,
-                stats: CarStats {
-                    base_tyre_grip: 500.0,
-                    power: 250.0,
-                    drag_coeff: 1.0 / 1000.0,
-                    turn_radius: 50.0,
-                    downforce_coeff: 1.0 / 2000.0,
-                    hitpoints: vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
-                    top_speed: (250.0 / (1.0 / 1000.0) as f32).sqrt(),
-                },
+                stats: CarStats::f2004(),
                 image: graphics::Image::from_path(&mut ctx, "/car.png").unwrap(),
             },
+            controls: Vec2 { x: 0.0, y: 0.0 }
         },
         time_since_start: 0.0,
         is_fullscreen: false,
@@ -279,12 +265,36 @@ impl AICar {
 
 struct PlayerCar {
     car: Car,
+    controls: Vec2,
 }
 impl PlayerCar {
     fn update(&mut self, keyboard: &mut keyboard::KeyboardContext, dt: f32) {
-        self.car.update(keyboard_control(keyboard), dt);
+        let sens = 1.0 / 10.0;
+        if is_key_down(keyboard, "a") {
+            self.controls.x -= (-1.0 - self.controls.x).abs() * sens
+        }
+        else if is_key_down(keyboard, "d") {
+            self.controls.x += (1.0 - self.controls.x).abs() * sens
+        }
+        else {
+            self.controls.x += (0.0 - self.controls.x).abs() * sens
+        }
+        if is_key_down(keyboard, "s") {
+            self.controls.y -= (-1.0 - self.controls.y).abs() * sens
+        }
+        else if is_key_down(keyboard, "w") {
+            self.controls.y += (1.0 - self.controls.y).abs() * sens
+        }
+        else {
+            self.controls.y += (0.0 - self.controls.y).abs() * sens
+        }
+        self.car.update(CarControl::from_vec2(self.controls), dt);
     }
     fn draw(&self, canvas: &mut graphics::Canvas) {
         self.car.draw(canvas);
     }
+}
+
+pub fn is_key_down(keyboard: &mut KeyboardContext, key: &str) -> bool {
+    keyboard.is_logical_key_pressed(&Key::Character(SmolStr::new_inline(key)))
 }

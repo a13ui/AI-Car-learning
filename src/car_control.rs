@@ -11,7 +11,7 @@ pub struct CarControl {
 }
 
 impl CarControl {
-    fn from_vec2(vector: Vec2) -> Self {
+    pub fn from_vec2(vector: Vec2) -> Self {
         CarControl {
             turn: vector.x,
             accelerate: vector.y.max(0.0),
