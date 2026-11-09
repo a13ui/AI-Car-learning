@@ -95,17 +95,21 @@ impl Track {
         false
     }
     pub fn get_progression(&self, point: Vec2) -> f32 {
+        let start_offset = self.start_finish.get_length() * self.start_position;
         if self.start_finish.contains(point, self.radius) {
-            return self.start_finish.get_progression(point) * self.start_finish.get_length() / self.length;
+            return ((self.start_finish.get_progression(point) * self.start_finish.get_length() - start_offset) / self.length).rem_euclid(1.0);
         }
         let mut distance = self.start_finish.get_length();
 
         for segment in &self.segments {
             if segment.contains(point, self.radius) {
-                return (distance + segment.get_progression(point) * segment.get_length()) / self.length;
+                return ((distance + segment.get_progression(point) * segment.get_length() - start_offset) / self.length).rem_euclid(1.0);
             }
             distance += segment.get_length();
         }
+
+
+
 
         panic!("point given was not on the track")
     }

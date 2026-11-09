@@ -75,24 +75,16 @@ impl Car {
     }
 }
 
-const PX_PER_M: f32 = 67.0 / 4.545;
-const G: f32 = 9.81 * PX_PER_M;
 impl CarStats {
     pub fn f2004() -> Self {
-
-        let power = 11.5 * PX_PER_M;
-        let top_speed = 100.0 * PX_PER_M;
-
-        let reference_speed = 80.0 * PX_PER_M;
-
         CarStats {
-            base_tyre_grip: 2.0 * G,
-            power,
-            drag_coeff: power / (top_speed * top_speed),
-            turn_radius: 8.5 * PX_PER_M,
-            downforce_coeff: 2.5 * G / (reference_speed * reference_speed),
+            base_tyre_grip: 1000.0,
+            power: 250.0,
+            drag_coeff: 1.0 / 2000.0,
+            turn_radius: 50.0,
+            downforce_coeff: 1.0 / 2000.0,
             hitpoints: vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
-            top_speed,
+            top_speed: (250.0 * 2000.0 as f32).sqrt(),
         }
     }
 
