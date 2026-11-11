@@ -1,10 +1,8 @@
-use crate::vectors::Vec2;
-use crate::car_control::CarControl;
+use crate::vectors::*;
 use ggez::*;
 
 pub struct Car {
-    pub position: Vec2,
-    pub rotation: f32,
+    pub transform: Transform,
     pub velocity: f32,
 
     pub stats: CarStats,
@@ -53,24 +51,24 @@ impl Car {
 
         
         if (lateral_delta * lateral_delta + velocity_delta * velocity_delta) > grip * grip {
-            self.position += Vec2::from_bearing(self.rotation) * self.velocity * dt;
+            self.transform.position += Vec2::from_bearing(self.transform.bearing) * self.velocity * dt;
             false
         }
         else {
             self.velocity += velocity_delta * dt;
             self.velocity = self.velocity.max(0.0);
-            self.rotation += rotation_delta * dt;
-            self.position += Vec2::from_bearing(self.rotation) * self.velocity * dt;
+            self.transform.bearing += rotation_delta * dt;
+            self.transform.position += Vec2::from_bearing(self.transform.bearing) * self.velocity * dt;
             true
         }
 
     }
     pub fn draw(&self, canvas: &mut graphics::Canvas) {
         canvas.draw(&self.image, graphics::DrawParam::default()
-            .dest([self.position.x, 1080.0 - self.position.y])
+            .dest([self.transform.position.x, 1080.0 - self.transform.position.y])
             .offset([0.5, 0.5])
             .scale([1.0, 1.0])
-            .rotation(self.rotation),
+            .rotation(self.transform.bearing),
         );
     }
 }
@@ -79,24 +77,19 @@ const PX_PER_M: f32 = 67.0 / 4.545;
 const G: f32 = 9.81 * PX_PER_M;
 impl CarStats {
     pub fn f2004() -> Self {
-
-        let power = 11.5 * PX_PER_M;
-        let top_speed = 100.0 * PX_PER_M;
-
-        let reference_speed = 80.0 * PX_PER_M;
-
         CarStats {
-            base_tyre_grip: 2.0 * G,
-            power,
-            drag_coeff: power / (top_speed * top_speed),
-            turn_radius: 8.5 * PX_PER_M,
-            downforce_coeff: 2.5 * G / (reference_speed * reference_speed),
+            base_tyre_grip: 1000.0,
+            power: 250.0,
+            drag_coeff: 1.0 / 2000.0,
+            turn_radius: 50.0,
+            downforce_coeff: 1.0 / 2000.0,
             hitpoints: vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
-            top_speed,
+            top_speed: (250.0 * 2000.0 as f32).sqrt(),
         }
     }
-
-    pub fn top_speed(&self) -> f32 {
-        (self.power / self.drag_coeff).sqrt()
-    }
+}
+pub struct CarControl {
+    pub turn: f32,
+    pub accelerate: f32,
+    pub brake: f32,
 }

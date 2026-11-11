@@ -95,3 +95,9 @@ impl AddAssign for Vec2 {
         self.y += rhs.y;
     }
 }
+
+#[derive(Clone, Copy)]
+pub struct Transform {
+    pub position: Vec2,
+    pub bearing: f32,
+}

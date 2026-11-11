@@ -2,10 +2,9 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use image::{ImageBuffer, Rgba};
 
-use crate::vectors::Vec2;
+use crate::vectors::*;
 
 const HALF_PI: f32 = std::f32::consts::PI / 2.0;
-const PI: f32 = std::f32::consts::PI;
 const TAU: f32 = std::f32::consts::PI * 2.0;
 
 const MAX_RAY_HOPS: usize = 64;
@@ -20,20 +19,6 @@ pub struct Track {
 }
 
 impl Track {
-    pub fn validate(&self) -> bool {
-        if !connects(self.start_finish.get_end(), self.segments[0].get_start()) {
-            return false
-        }
-        for i in 0..(self.segments.len() - 1) {
-            if !connects(self.segments[i].get_end(), self.segments[i + 1].get_start()) {
-                return false
-            }
-        }
-        if !connects(self.segments[self.segments.len() - 1].get_end(), self.start_finish.get_start()) {
-            return false
-        }
-        true
-    }
     pub fn from_file(path: &str) -> Self {
         let file = File::open(path).unwrap();
         let mut lines = BufReader::new(file).lines();
@@ -95,14 +80,15 @@ impl Track {
         false
     }
     pub fn get_progression(&self, point: Vec2) -> f32 {
+        let start_offset = self.start_finish.get_length() * self.start_position;
         if self.start_finish.contains(point, self.radius) {
-            return self.start_finish.get_progression(point) * self.start_finish.get_length() / self.length;
+            return ((self.start_finish.get_progression(point) * self.start_finish.get_length() - start_offset) / self.length).rem_euclid(1.0);
         }
         let mut distance = self.start_finish.get_length();
 
         for segment in &self.segments {
             if segment.contains(point, self.radius) {
-                return (distance + segment.get_progression(point) * segment.get_length()) / self.length;
+                return ((distance + segment.get_progression(point) * segment.get_length() - start_offset) / self.length).rem_euclid(1.0);
             }
             distance += segment.get_length();
         }
@@ -113,7 +99,6 @@ impl Track {
         let mut travelled = 0.0;
         for _ in 0..MAX_RAY_HOPS {
             let point = origin + direction * travelled;
-            // Segments abut at their joints, so leaving one usually means entering the next.
             let exit = std::iter::once(&self.start_finish)
                 .chain(&self.segments)
                 .find_map(|segment| segment.collide_ray(point, direction, self.radius));
@@ -123,6 +108,12 @@ impl Track {
             }
         }
         Some(travelled)
+    }
+    pub fn get_start(&self) -> Transform {
+        Transform { 
+            position: self.start_finish.get_point(self.start_position),
+            bearing: self.start_finish.get_bearing(self.start_position),
+        }
     }
 }
 
@@ -228,39 +219,6 @@ pub struct RadialLine {
 }
 
 impl LineSegment {
-    fn get_start(&self) -> LineEnding {
-        match self {
-            LineSegment::Streight(line) => {
-                LineEnding {
-                    position: line.start,
-                    bearing: (line.start - line.end).bearing(),
-                }
-            },
-            LineSegment::Radial(line) => {
-                LineEnding {
-                    position: line.centre + Vec2::from_bearing(line.start_bearing) * line.radius,
-                    bearing: line.start_bearing + -HALF_PI * line.size.signum(),                    
-                }
-            }     
-        }
-    }
-    fn get_end(&self) -> LineEnding {
-        match self {
-            LineSegment::Streight(line) => {
-                LineEnding {
-                    position: line.end,
-                    bearing: (line.end - line.start).bearing(),
-                }
-            },
-            LineSegment::Radial(line) => {
-                let bearing = line.start_bearing + line.size;
-                LineEnding {
-                    position: line.centre + Vec2::from_bearing(bearing) * line.radius,
-                    bearing: bearing + HALF_PI * line.size.signum(),                    
-                }
-            },
-        }    
-    }
     pub fn get_point(&self, t: f32) -> Vec2 {
         match self {
             LineSegment::Streight(line) => {
@@ -392,19 +350,11 @@ fn collide_ray(&self, origin: Vec2, direction: Vec2, track_radius: f32) -> Optio
 }
 }
 
-struct LineEnding {
-    position: Vec2,
-    bearing: f32,
-}
 
 fn flip_vec2(input: Vec2) -> Vec2 {
     Vec2 { x: input.x, y: 1080.0 - input.y}
 }
 
-fn connects(a: LineEnding, b: LineEnding) -> bool {
-    let diff = (a.bearing - b.bearing).rem_euclid(TAU);
-    (a.position - b.position).lengthsq() < 1.0 && (diff - PI).abs() < HALF_PI / 8.0
-}
 
 fn slab_exit(pos: f32, vel: f32, lo: f32, hi: f32) -> f32 {
     if vel > 0.0 {
