@@ -2,14 +2,15 @@ Not Done:
 seperate camera position/zoom to track
 training on multiple tracks.
 mutation scale scaling down with generations
-improve player car controls
-implement network memory
+make them learn faster
+network saving/loading
+develop purging/repopulation
 
 Done:
 Establish better global values for max ray range and max speed.
-Rework main's Ray() to be accurate and efficient.ca
+Rework main's Ray() to be accurate and efficient.
 Allow radial curves to be used as startline.
 Separate car states from state.
 Use four points as the cars hitbox.
-Add player car to compare to bots pace.
 Get realistic car values for f2004.
+Implement network memory.

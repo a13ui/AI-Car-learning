@@ -14,18 +14,21 @@ use vectors::Vec2;
 use ggez::*;
 use ggez::graphics::Color;
 use ggez::input::keyboard::KeyInput;
-use winit::keyboard::{Key, NamedKey};
-use std::f32::consts::PI;
 use ggez::conf::FullscreenType;
+
+use winit::keyboard::{Key, NamedKey};
+
+use std::f32::consts::PI;
 
 use crate::vectors::Transform;
 
 const RAY_MAX: f32 = 512.0;
 
-const PROGRESSION_SCORE: f32 = 500.0; // score made per lap of progression
-const LAP_SCORE: f32 = 500.0; // score made per completed lap
-const LAP_SPEED_PENALTY: f32 = 50.0; // score lost lost per lap per second
+const PROGRESSION_SCORE: f32 = 50.0; // score made per lap of progression
+const LAP_SCORE: f32 = 50.0; // score made per completed lap
+const LAP_SPEED_PENALTY: f32 = 1.0; // score lost lost per second of lap time evey lap
 const SLIDE_PENALTY: f32 = 1.0; // penalty for traction limit per second
+
 fn main() {
     let c = conf::Conf {
         window_mode: conf::WindowMode {
@@ -35,12 +38,12 @@ fn main() {
         },
         ..Default::default()
     };
-    let (mut ctx, event_loop) = ContextBuilder::new("game", "")
+    let (mut ctx, event_loop) = ContextBuilder::new("carr", "John Pork")
         .default_conf(c)
         .build()
         .unwrap();
 
-    let track = Track::from_file("tracks/1.txt");
+    let track = Track::from_file("tracks/3.txt");
     track.render("target/debug/resources/track.png");
     
     let mut bots = Vec::new();
@@ -53,7 +56,7 @@ fn main() {
                     stats: CarStats::f2004(),
                     image: graphics::Image::from_path(&mut ctx, "/car.png").unwrap(),
                 },
-                network: Network::new(vec![10, 5, 5, 2], vec![Function::Relu, Function::Relu, Function::Tanh], 3, Function::Sigmoid),
+                network: Network::new(vec![10, 4, 4, 2], vec![Function::Relu, Function::Relu, Function::Tanh], 5, Function::Sigmoid),
                 score: 0.0,
                 alive: false,
                 distance_traveled: 0.0,
@@ -234,7 +237,9 @@ impl AICar {
 
     }
     fn draw(&self, canvas: &mut graphics::Canvas) {
-        self.car.draw(canvas);
+        if self.alive {
+            self.car.draw(canvas);
+        }
     }
     fn reset(&mut self, transform: Transform) {
         self.car.transform = transform;

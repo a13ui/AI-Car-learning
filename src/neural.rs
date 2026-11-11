@@ -1,7 +1,7 @@
 use rand::RngExt;
 
 const MUTATION_RATE: f32 = 0.1;
-const MUTATION_SCALE: f32 = 0.3;
+const MUTATION_SCALE: f32 = 1.0;
 
 pub struct Network {
     pub layers: Vec<Layer>,
