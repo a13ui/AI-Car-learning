@@ -22,8 +22,9 @@ use crate::vectors::Transform;
 
 const RAY_MAX: f32 = 512.0;
 
-const PROGRESSION_SCORE: f32 = 100.0; // score made per lap of progression
-const LAP_SCORE_SPEED: f32 = 500.0; // score made per lap divided by lap time in seconds
+const PROGRESSION_SCORE: f32 = 500.0; // score made per lap of progression
+const LAP_SCORE: f32 = 500.0; // score made per completed lap
+const LAP_SPEED_PENALTY: f32 = 50.0; // score lost lost per lap per second
 const SLIDE_PENALTY: f32 = 1.0; // penalty for traction limit per second
 fn main() {
     let c = conf::Conf {
@@ -226,7 +227,8 @@ impl AICar {
 
         if last_progress > 0.875 && self.progress < 0.125 {
             self.laps += 1;
-            self.score += LAP_SCORE_SPEED / self.time_since_last_lap;
+            self.score += LAP_SCORE;
+            self.score -= LAP_SPEED_PENALTY * self.time_since_last_lap;
             self.time_since_last_lap = 0.0;
         }
 

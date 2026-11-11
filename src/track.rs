@@ -93,6 +93,9 @@ impl Track {
             distance += segment.get_length();
         }
 
+
+
+
         panic!("point given was not on the track")
     }
     pub fn collide_ray(&self, origin: Vec2, direction: Vec2) -> Option<f32> {

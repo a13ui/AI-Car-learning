@@ -73,8 +73,6 @@ impl Car {
     }
 }
 
-const PX_PER_M: f32 = 67.0 / 4.545;
-const G: f32 = 9.81 * PX_PER_M;
 impl CarStats {
     pub fn f2004() -> Self {
         CarStats {
