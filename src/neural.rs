@@ -83,6 +83,25 @@ impl Network {
 
         output
     }
+    pub fn vary(&self) -> Self {
+        let mut layers = Vec::new();
+        for l in 0..(self.size - 1) {
+            layers.push(self.layers[l].vary());
+        }
+        Network {
+            layers,
+            size: self.size,
+            memories: {
+                let mut v  = Vec::new();
+                for _i  in 0..self.memory_size{
+                    v.push(0.0);
+                };
+                v
+            }, 
+            memory_size: self.memory_size, 
+            memory_function: self.memory_function.clone(),         
+        }
+    }
     pub fn breed(a: &Self, b: &Self) -> Self {
         let mut layers = Vec::new();
         let size = a.size.min(b.size);
@@ -101,25 +120,6 @@ impl Network {
             }, 
             memory_size: a.memory_size, 
             memory_function: a.memory_function.clone(),         
-        }
-    }
-    pub fn vary(&self) -> Self {
-        let mut layers = Vec::new();
-        for l in 0..(self.size - 1) {
-            layers.push(self.layers[l].vary());
-        }
-        Network {
-            layers,
-            size: self.size,
-            memories: {
-                let mut v  = Vec::new();
-                for _i  in 0..self.memory_size{
-                    v.push(0.0);
-                };
-                v
-            }, 
-            memory_size: self.memory_size, 
-            memory_function: self.memory_function.clone(),         
         }
     }
 }
@@ -144,16 +144,6 @@ impl Layer {
         };
         output
     }
-    fn breed(a: &Self, b: &Self) -> Self {
-        let mut neurons = Vec::new();
-        for i in 0..a.size.min(b.size) {
-            neurons.push(Neuron::breed(&a.neurons[i], &b.neurons[i]));
-        }
-        Layer {
-            neurons,
-            size: a.size,
-        }
-    }
     fn vary(&self) -> Self {
         let mut neurons = Vec::new();
         for n in 0..self.size {
@@ -162,6 +152,16 @@ impl Layer {
         Layer {
             neurons,
             size: self.size,
+        }
+    }
+    fn breed(a: &Self, b: &Self) -> Self {
+        let mut neurons = Vec::new();
+        for i in 0..a.size.min(b.size) {
+            neurons.push(Neuron::breed(&a.neurons[i], &b.neurons[i]));
+        }
+        Layer {
+            neurons,
+            size: a.size,
         }
     }
 }
@@ -188,18 +188,6 @@ impl Neuron {
         };
         run_function(&self.function, output)
     }
-    fn breed(a: &Self, b: &Self) -> Self {
-        let mut weights = Vec::new();
-        for i in 0..a.size.min(b.size) {
-            weights.push(crossover(a.weights[i], b.weights[i]));
-        }
-        Neuron {
-            bias: crossover(a.bias, b.bias),
-            weights,
-            size: a.size,
-            function: a.function.clone(),
-        }
-    }
     fn vary(&self) -> Self {
         let mut weights = Vec::new();
         for i in 0..self.size {
@@ -210,6 +198,18 @@ impl Neuron {
             weights,
             size: self.size,
             function: self.function.clone(),
+        }
+    }
+    fn breed(a: &Self, b: &Self) -> Self {
+        let mut weights = Vec::new();
+        for i in 0..a.size.min(b.size) {
+            weights.push(crossover(a.weights[i], b.weights[i]));
+        }
+        Neuron {
+            bias: crossover(a.bias, b.bias),
+            weights,
+            size: a.size,
+            function: a.function.clone(),
         }
     }
 }

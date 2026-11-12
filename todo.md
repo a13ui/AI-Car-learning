@@ -1,10 +1,10 @@
 Not Done:
-seperate camera position/zoom to track
 training on multiple tracks.
 mutation scale scaling down with generations
 make them learn faster
 network saving/loading
 develop purging/repopulation
+track images auto saved
 
 Done:
 Establish better global values for max ray range and max speed.

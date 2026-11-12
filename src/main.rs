@@ -38,7 +38,7 @@ fn main() {
         },
         ..Default::default()
     };
-    let (mut ctx, event_loop) = ContextBuilder::new("carr", "John Pork")
+    let (mut ctx, event_loop) = ContextBuilder::new("car sim", "")
         .default_conf(c)
         .build()
         .unwrap();
@@ -204,7 +204,6 @@ impl AICar {
             let angle = self.car.transform.bearing - PI / 2.0 + PI * i as f32 / 8.0;
             inputs.push(track.ray(ray_start, angle));
         }
-        let size = inputs.len();
         
         let out = self.network.run(&inputs);
         let controls = CarControl { turn: out[0], accelerate: out[1].max(0.0), brake: (-out[1]).max(0.0)};

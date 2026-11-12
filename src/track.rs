@@ -124,8 +124,8 @@ fn read_line(total_length: &mut f32, line: String) -> LineSegment {
     let mut line_words = line.split(" ");
     match line_words.next().unwrap() {
         "line" => {
-            let start = Vec2 { x: next(&mut line_words), y: next(&mut line_words)};
-            let end =  Vec2 { x: next(&mut line_words), y: next(&mut line_words)};
+            let start = next_vec2(&mut line_words);
+            let end =  next_vec2(&mut line_words);
             let length = (end - start).length();
             *total_length += length;
             LineSegment::Streight( StreightLine {
@@ -135,10 +135,10 @@ fn read_line(total_length: &mut f32, line: String) -> LineSegment {
             })
         }
         "radial" => {
-            let centre = Vec2 { x: next(&mut line_words), y: next(&mut line_words)};
-            let radius = next(&mut line_words);
-            let start_bearing = next(&mut line_words);
-            let size = next(&mut line_words);
+            let centre = next_vec2(&mut line_words);
+            let radius = next_f32(&mut line_words);
+            let start_bearing = next_f32(&mut line_words);
+            let size = next_f32(&mut line_words);
             let length = size.abs() * radius;
             *total_length += length;
             LineSegment::Radial( RadialLine {
@@ -149,13 +149,18 @@ fn read_line(total_length: &mut f32, line: String) -> LineSegment {
                 length,
             })
         }
-        _ => { panic!("unrecoginest line type") }
+        _ => { panic!("unregonised line type") }
     }
 }
 
-fn next(line_words: &mut std::str::Split<'_, &str>) -> f32 {
+fn next_vec2(line_words: &mut std::str::Split<'_, &str>) -> Vec2 {
+    Vec2 { x: next_f32(&mut line_words), y: next_f32(&mut line_words)}
+}
+
+fn next_f32(line_words: &mut std::str::Split<'_, &str>) -> f32 {
     line_words.next().unwrap().parse::<f32>().unwrap()
 }
+
 fn draw_polygon(image: &mut ImageBuffer<Rgba<u8>, Vec<u8>>, points: Vec<Vec2>,)
 {
     if points.len() < 3 {
