@@ -154,7 +154,7 @@ fn read_line(total_length: &mut f32, line: String) -> LineSegment {
 }
 
 fn next_vec2(line_words: &mut std::str::Split<'_, &str>) -> Vec2 {
-    Vec2 { x: next_f32(&mut line_words), y: next_f32(&mut line_words)}
+    Vec2 { x: next_f32(line_words), y: next_f32(line_words)}
 }
 
 fn next_f32(line_words: &mut std::str::Split<'_, &str>) -> f32 {
