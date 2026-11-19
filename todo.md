@@ -1,9 +1,7 @@
 Not Done:
+advance purging/repopulation
 training on multiple tracks.
-mutation scale scaling down with generations
-make them learn faster
 network saving/loading
-develop purging/repopulation
 track images auto saved
 
 Done:
