@@ -1,5 +1,8 @@
 use rand::RngExt;
 
+use std::io::{BufRead, BufReader};
+use std::fs::{self, File};
+
 const MUTATION_RATE: f32 = 0.1;
 const MUTATION_SCALE: f32 = 1.0;
 
@@ -15,6 +18,7 @@ pub struct Network {
 pub struct Layer {
     pub neurons: Vec<Neuron>,
     pub size: usize,
+    pub function: Function,
 }
 
 pub struct Neuron {
@@ -33,7 +37,7 @@ pub enum Function {
 }
 
 impl Network {
-    pub fn new(sizes: Vec<usize>, function: Vec<Function>, memory_size: usize, memory_function: Function) -> Network {
+    pub fn new(sizes: Vec<usize>, function: Vec<Function>, memory_size: usize, memory_function: Function) -> Self {
         let size = sizes.len();
         Network { 
             layers: {
@@ -61,6 +65,50 @@ impl Network {
                 };
                 v
             }, 
+            memory_size, 
+            memory_function,
+        }
+    }
+    pub fn save(&self, path: &str) {
+        let mut output = String::new();
+        output += &(self.size - 1).to_string();
+        output += "\n";
+        output += &self.memory_size.to_string();
+        output += " ";
+        output += match self.memory_function {
+            Function::Sigmoid => "sigmoid",
+            Function::Relu => "relu",
+            Function::Tanh => "tanh",
+        };
+        output += "\n";
+        for l in &self.layers {
+            output += &l.save();
+        }  
+        let _ = fs::write(path, output);
+    }
+    pub fn load(path: &str) -> Self {
+        let mut lines = BufReader::new(File::open(path).unwrap()).lines();
+
+        let first_line = lines.next().unwrap().unwrap();
+        let mut split_first_line = first_line.split(' ');
+
+        let size = next_f32(&mut split_first_line) as usize;
+        let memory_size = next_f32(&mut split_first_line) as usize;
+        let memory_function = next_function(&mut split_first_line);
+
+        let mut memories = Vec::new();
+        for _i in 0.. memory_size {
+            memories.push(0.0);
+        }
+
+        let mut layers = Vec::new();
+        for _i in 0..size {
+            layers.push(Layer::load(&mut lines));
+        }
+        Network { 
+            layers,
+            size,
+            memories, 
             memory_size, 
             memory_function,
         }
@@ -125,16 +173,48 @@ impl Network {
 }
 
 impl Layer {
-    fn new(size: usize, prev_layer_size: usize, func: &Function) -> Layer {
+    fn new(size: usize, prev_layer_size: usize, function: &Function) -> Self {
         Layer {
             neurons: {
                 let mut n = Vec::new();
                 for _i in 0..size {
-                    n.push(Neuron::new(prev_layer_size, func.clone()));
+                    n.push(Neuron::new(prev_layer_size, function.clone()));
                 };
                 n
             },
             size: size,
+            function: function.clone(),
+        }
+    }
+    fn save(&self) -> String {
+        let mut output = String::from("\n");
+        output += &self.size.to_string();
+        output += " ";
+        output += match self.function {
+            Function::Sigmoid => "sigmoid",
+            Function::Relu => "relu",
+            Function::Tanh => "tanh",
+        };
+        for n in &self.neurons {
+            output += &n.save();
+        }
+        output
+    }
+    fn load(lines: &mut std::io::Lines<BufReader<File>>) -> Self {
+        let first_line = lines.next().unwrap().unwrap();
+        let mut split_first_line = first_line.split(' ');
+
+        let size = next_f32(&mut split_first_line) as usize;
+        let function = next_function(&mut split_first_line);
+
+        let mut neurons = Vec::new();
+        for _i in 0..size {
+            neurons.push(Neuron::load(lines.next().unwrap().unwrap(), function.clone()));
+        }
+        Layer {
+            neurons,
+            size,
+            function: function.clone(),
         }
     }
     fn run(&self, input: &Vec<f32>) -> Vec<f32>{
@@ -152,6 +232,7 @@ impl Layer {
         Layer {
             neurons,
             size: self.size,
+            function: self.function.clone(),
         }
     }
     fn breed(a: &Self, b: &Self) -> Self {
@@ -162,12 +243,13 @@ impl Layer {
         Layer {
             neurons,
             size: a.size,
+            function: a.function.clone(),
         }
     }
 }
 
 impl Neuron {
-    fn new(prev_layer_size: usize, func: Function) -> Neuron {    
+    fn new(prev_layer_size: usize, func: Function) -> Self {    
         Neuron { 
             bias: ran_param(), 
             weights: {
@@ -179,6 +261,30 @@ impl Neuron {
             },
             size: prev_layer_size,
             function: func,
+        }
+    }
+    fn save(&self) -> String {
+        let mut output = String::from("\n");
+        output += &self.bias.to_string();
+        for weight in &self.weights {
+            output += " ";
+            output += &weight.to_string();
+        }
+        output
+    }
+    fn load(line: String, function: Function) -> Self {
+        let mut line_words = line.split(' ');
+        let bias = next_f32(&mut line_words);
+        let mut weights = Vec::new();
+        for word in line_words {
+            weights.push(parse_f32(word));
+        }
+        let size = weights.len();
+        Neuron { 
+            bias,
+            weights, 
+            function, 
+            size,
         }
     }
     fn run(&self, input: &Vec<f32>) -> f32 {
@@ -252,4 +358,19 @@ fn crossover(a: f32, b: f32) -> f32 {
 fn ran_param() -> f32 {
     let mut rng = rand::rng();
     rng.random::<f32>() * 2.0 - 1.0
+}
+
+fn next_f32(iter: &mut std::str::Split<'_, char>) -> f32 {
+    parse_f32(iter.next().unwrap())
+}
+fn next_function(iter: &mut std::str::Split<'_, char>)-> Function {
+    match iter.next().unwrap() {
+        "sigmoid" => Function::Sigmoid,
+        "relu" => Function::Relu,
+        "tanh" => Function::Tanh,
+        _ => panic!("unknown function type"),
+    }
+}
+fn parse_f32(string: &str) -> f32 {
+    string.parse::<f32>().unwrap()
 }
