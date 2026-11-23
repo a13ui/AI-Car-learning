@@ -50,12 +50,7 @@ fn main() {
     for _i in 0..128 {
         bots.push(
             AICar {
-                car: Car {
-                    transform: track.get_start(),
-                    velocity: 0.0,
-                    stats: CarStats::f2004(),
-                    image: graphics::Image::from_path(&mut ctx, "/car.png").unwrap(),
-                },
+                car: Car::f2004(&mut ctx, track.get_start()),
                 network: Network::new(vec![10, 4, 4, 2], vec![Function::Relu, Function::Relu, Function::Tanh], 5, Function::Sigmoid),
                 score: 0.0,
                 alive: false,
@@ -78,6 +73,14 @@ fn main() {
     }; 
 
     let _ = event::run(ctx, event_loop, state); 
+}
+
+struct State {
+    track: GameTrack,
+    bots: Vec<AICar>,
+    is_fullscreen: bool,
+    time_since_start: f32,
+    fps: f32,
 }
 
 impl ggez::event::EventHandler for State {
@@ -156,13 +159,7 @@ impl State {
     }
 }
 
-struct State {
-    track: GameTrack,
-    bots: Vec<AICar>,
-    is_fullscreen: bool,
-    time_since_start: f32,
-    fps: f32,
-}
+
 struct GameTrack {
     track: Track,
     image: graphics::Image,

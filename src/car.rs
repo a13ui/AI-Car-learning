@@ -1,22 +1,34 @@
 use crate::vectors::*;
-use ggez::*;
+use ggez::{graphics::GraphicsContext, *};
 
 pub struct Car {
     pub transform: Transform,
     pub velocity: f32,
 
+    pub engine_revs: f32,
+    pub turbo_spool: f32,
     pub stats: CarStats,
 
     pub image: graphics::Image,
 }
 pub struct CarStats {
     pub base_tyre_grip: f32,
-    pub power: f32,
+    pub base_engine_power: f32,
+
+    pub rev_limit: f32,
+    pub turbo_boost: f32,
+    pub turbo_spool_rate: f32,
+    pub super_pressure: f32,
+    
+    pub gear_ratios: Vec<f32>,
+
     pub drag_coeff: f32,
     pub turn_radius: f32,
     pub downforce_coeff: f32,
     pub hitpoints: Vec<Vec2>,
     
+
+
     pub top_speed: f32,
 }
 
@@ -44,10 +56,15 @@ impl Car {
         let lateral_delta = rotation_delta.abs() * self.velocity.abs();
 
         let mut velocity_delta = 0.0;
+        
+        let intake_pressure = 1.0 + self.stats.super_pressure + self.turbo_spool * self.stats.turbo_boost;
+        let airflow = controls.accelerate * self.engine_revs * intake_pressure;
+        let power_output = airflow * self.stats.base_engine_power;
+        self.turbo_spool += (airflow - self.turbo_spool) * self.stats.turbo_spool_rate * dt;
 
         velocity_delta -= travel_dir * controls.brake * grip;
         velocity_delta -= travel_dir * velocity_squared * self.stats.drag_coeff;
-        velocity_delta += controls.accelerate * self.stats.power;
+        velocity_delta += power_output;
 
         
         if (lateral_delta * lateral_delta + velocity_delta * velocity_delta) > grip * grip {
@@ -71,13 +88,28 @@ impl Car {
             .rotation(self.transform.bearing),
         );
     }
+    pub fn f2004(ctx: &mut Context, position: Transform) -> Self {
+        Car {
+            transform: position,
+            velocity: 0.0,
+            engine_revs: 0.0,
+            turbo_spool: 0.0,
+            stats: CarStats::f2004(),
+            image: graphics::Image::from_path(ctx, "/car.png").unwrap(),
+        }
+    }
 }
 
 impl CarStats {
     pub fn f2004() -> Self {
         CarStats {
             base_tyre_grip: 1000.0,
-            power: 250.0,
+            base_engine_power: 250.0,
+            rev_limit: 19000.0,
+            turbo_boost: 0.0,
+            turbo_spool_rate: 0.0,
+            super_pressure: 0.0,
+            gear_ratios: vec![1.0, 2.0, 3.0, 4.0, 5.0],
             drag_coeff: 1.0 / 2000.0,
             turn_radius: 50.0,
             downforce_coeff: 1.0 / 2000.0,
