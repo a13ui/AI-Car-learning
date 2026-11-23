@@ -91,11 +91,7 @@ impl Track {
                 return ((distance + segment.get_progression(point) * segment.get_length() - start_offset) / self.length).rem_euclid(1.0);
             }
             distance += segment.get_length();
-        }
-
-
-
-
+        }        
         panic!("point given was not on the track")
     }
     pub fn collide_ray(&self, origin: Vec2, direction: Vec2) -> Option<f32> {
