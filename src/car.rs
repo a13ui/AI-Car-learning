@@ -1,5 +1,5 @@
 use crate::vectors::*;
-use ggez::{graphics::GraphicsContext, *};
+use ggez::*;
 
 pub struct Car {
     pub transform: Transform,
@@ -36,49 +36,46 @@ impl Car {
     pub fn update(&mut self, controls: CarControl, dt: f32) -> bool {
         let velocity_squared = self.velocity * self.velocity;
         let grip = self.stats.base_tyre_grip + self.stats.downforce_coeff * velocity_squared;
+        let travel_dir = if self.velocity == 0.0 { 0.0 } else  { self.velocity.signum() };
 
-        let travel_dir = if self.velocity > 0.0 {
-            1.0
-        } else if self.velocity < 0.0 {
-            -1.0
-        } else {
-            0.0
-        };
-
-        let mut rotation_delta = 0.0;
-
-        if self.velocity != 0.0 {
-            let radius = (velocity_squared / grip).max(self.stats.turn_radius);
-            let rad_sec = self.velocity / radius;
-            rotation_delta += controls.turn * rad_sec;
-        }
-
-        let lateral_delta = rotation_delta.abs() * self.velocity.abs();
-
-        let mut velocity_delta = 0.0;
-        
         let intake_pressure = 1.0 + self.stats.super_pressure + self.turbo_spool * self.stats.turbo_boost;
         let airflow = controls.accelerate * self.engine_revs * intake_pressure;
         let power_output = airflow * self.stats.base_engine_power;
         self.turbo_spool += (airflow - self.turbo_spool) * self.stats.turbo_spool_rate * dt;
 
+        let mut velocity_delta = 0.0;
+
         velocity_delta -= travel_dir * controls.brake * grip;
         velocity_delta -= travel_dir * velocity_squared * self.stats.drag_coeff;
         velocity_delta += power_output;
 
-        
-        if (lateral_delta * lateral_delta + velocity_delta * velocity_delta) > grip * grip {
-            self.transform.position += Vec2::from_bearing(self.transform.bearing) * self.velocity * dt;
-            false
-        }
-        else {
-            self.velocity += velocity_delta * dt;
-            self.velocity = self.velocity.max(0.0);
-            self.transform.bearing += rotation_delta * dt;
-            self.transform.position += Vec2::from_bearing(self.transform.bearing) * self.velocity * dt;
-            true
+        let mut lateral_delta = 0.0;
+
+        let mut turn_radius = 0.0;
+        if controls.turn != 0.0 {
+            turn_radius = self.stats.turn_radius / controls.turn;
+            lateral_delta = velocity_squared / turn_radius;
         }
 
+        let used_grip_sq = lateral_delta * lateral_delta + velocity_delta * velocity_delta;
+        let has_slid = used_grip_sq > grip * grip;
+        if has_slid {
+            let used_grip = used_grip_sq.sqrt();
+            let multiplier = grip / used_grip;
+
+            velocity_delta *= multiplier;
+            lateral_delta *= multiplier;
+            turn_radius = velocity_squared / lateral_delta;
+        }
+
+        let rotation_delta = if turn_radius != 0.0 { self.velocity / turn_radius } else { 0.0 };
+
+        self.velocity += velocity_delta * dt;
+        self.velocity = self.velocity.max(0.0);
+        self.transform.bearing += rotation_delta * dt;
+        self.transform.position += Vec2::from_bearing(self.transform.bearing) * self.velocity * dt;
+
+        has_slid
     }
     pub fn draw(&self, canvas: &mut graphics::Canvas) {
         canvas.draw(&self.image, graphics::DrawParam::default()
