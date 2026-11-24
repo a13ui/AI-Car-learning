@@ -2,6 +2,7 @@ Not Done:
 advance purging/repopulation
 training on multiple tracks.
 track images auto saved
+network visulisation
 
 Doing:
 engine realism development

@@ -16,7 +16,8 @@ use ggez::graphics::Color;
 use ggez::input::keyboard::KeyInput;
 use ggez::conf::FullscreenType;
 
-use winit::keyboard::{Key, NamedKey};
+use winit::keyboard::{Key, NamedKey, SmolStr};
+use input::keyboard::KeyboardContext;
 
 use std::f32::consts::PI;
 
@@ -47,11 +48,11 @@ fn main() {
     track.render("target/debug/resources/track.png");
     
     let mut bots = Vec::new();
-    for _i in 0..128 {
+    for _i in 0..0 {
         bots.push(
             AICar {
                 car: Car::f2004(&mut ctx, track.get_start()),
-                network: Network::new(vec![10, 4, 4, 2], vec![Function::Relu, Function::Relu, Function::Tanh], 5, Function::Sigmoid),
+                network: Network::new(vec![10, 6, 6, 4], vec![Function::Relu, Function::Relu, Function::Sigmoid], 3, Function::Sigmoid),
                 score: 0.0,
                 alive: false,
                 distance_traveled: 0.0,
@@ -61,12 +62,14 @@ fn main() {
             }
         );
     }
+    let player = PlayerCar { car: Car::f2004(&mut ctx, track.get_start()) };
     let state = State {
         track: GameTrack {
             track,
             image: graphics::Image::from_path(&mut ctx, "/track.png").unwrap(),
         },
         bots,
+        player,
         time_since_start: 0.0,
         is_fullscreen: false,
         fps: 60.0,
@@ -78,6 +81,7 @@ fn main() {
 struct State {
     track: GameTrack,
     bots: Vec<AICar>,
+    player: PlayerCar,
     is_fullscreen: bool,
     time_since_start: f32,
     fps: f32,
@@ -94,7 +98,7 @@ impl ggez::event::EventHandler for State {
                 }
                 bot.update(&self.track, dt);
             }
-
+            self.player.update(&mut ctx.keyboard, dt);
             if self.bots.iter().all(|bot| !bot.alive || (bot.car.velocity < 25.0 && self.time_since_start > 1.0) || bot.laps >= 3) {
                 self.next_generation();
             }
@@ -109,7 +113,7 @@ impl ggez::event::EventHandler for State {
         for bot in &self.bots {
             bot.draw(&mut canvas);
         }
-
+        self.player.draw(&mut canvas);
         canvas.finish(ctx)
     }
     fn key_down_event(&mut self, ctx: &mut Context, input: KeyInput, repeated: bool) -> GameResult {
@@ -203,7 +207,13 @@ impl AICar {
         }
         
         let out = self.network.run(&inputs);
-        let controls = CarControl { turn: out[0], accelerate: out[1].max(0.0), brake: (-out[1]).max(0.0)};
+        let controls = CarControl { 
+            turn: 2.0 * out[0] - 1.0, 
+            accelerate: out[1], 
+            brake: out[2],
+            upshift: out[3] > 0.875,
+            downshift: out[3] < 0.125,
+        };
 
         if !self.car.update(controls, dt) {
             self.score -= SLIDE_PENALTY * dt;
@@ -249,3 +259,36 @@ impl AICar {
     }
 }
 
+struct PlayerCar {
+    car: Car,
+}
+impl PlayerCar {
+    fn update(&mut self, keyboard: &mut KeyboardContext, dt: f32) {
+        self.car.update(keyboard_control(keyboard), dt);
+    }
+    fn draw(&self, canvas: &mut graphics::Canvas) {
+        self.car.draw(canvas);
+    }
+}
+pub fn keyboard_control(keyboard: &mut KeyboardContext) -> CarControl {
+    CarControl {
+        turn: { 
+            let mut turn = 0.0;
+            if is_key_down(keyboard, "d") { turn += 1.0; }
+            if is_key_down(keyboard, "a") { turn -= 1.0; }
+            turn
+        },
+        accelerate: if is_key_down(keyboard, "w") { 1.0 } else { 0.0 },
+        brake: if is_key_down(keyboard, "s") { 1.0 } else { 0.0 },
+        upshift: is_key_down(keyboard, "e"),
+        downshift: is_key_down(keyboard, "q"),
+    }
+}
+
+pub fn is_key_down(keyboard: &mut KeyboardContext, key: &str) -> bool {
+    let out = keyboard.is_logical_key_pressed(&Key::Character(SmolStr::new_inline(key)));
+    if out {
+        println!("{key}");
+    }
+    out
+}
