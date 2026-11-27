@@ -1,6 +1,7 @@
 use crate::vectors::*;
 use ggez::*;
 const GRAVITY: f32 = 9.80665;
+
 struct Car {
     transform: Transform,
     velocity: f32,
@@ -52,7 +53,7 @@ impl Car {
             turn_radius = velocity_sq / lateral_force_delta;
         }
 
-        self.velocity += (longitudinal_force_delta  / self.mass) * dt;
+        self.velocity += (longitudinal_force_delta / self.mass) * dt;
         self.velocity = self.velocity.max(0.0);
         if turn_radius != 0.0 {
             self.transform.bearing += self.velocity / turn_radius * dt;
@@ -88,8 +89,6 @@ impl Car {
         self.transform.position += Vec2::from_bearing(self.transform.bearing) * self.velocity * dt;
 
     }
-
-
 }
 
 struct Engine {
@@ -98,22 +97,46 @@ struct Engine {
     rpm_limit: f32,
     idle_rpm: f32,
 
-    turbo_spool: f32,
-    turbo_boost: f32,
-    turbo_spool_rate: f32,
+    turbos: Vec<Turbo>,
 
     super_pressure: f32,
 }
 
 impl Engine {
     fn update(&mut self, throttle: f32, dt: f32) -> f32 {
-        let intake_pressure = 1.0 + self.super_pressure + self.turbo_spool * self.turbo_boost;
+
+        let intake_pressure = self.get_intake_pressure();
+
         let airflow = throttle * self.rpm.clamp(self.idle_rpm, self.rpm_limit) * intake_pressure;
-        self.turbo_spool += (airflow - self.turbo_spool) * self.turbo_spool_rate * dt;
+        for turbo in &mut self.turbos {
+            turbo.spool(airflow, dt);
+        }
+        
         airflow * self.base_power
+    }
+
+    fn get_intake_pressure(&mut self) -> f32 {
+        let mut intake_pressure = 1.0 + self.super_pressure;
+        for turbo in &self.turbos {
+            intake_pressure += turbo.boost();
+        }
+        intake_pressure
     }
     fn validate_rpm(&self, rpm: f32) -> bool {
         self.idle_rpm < rpm && rpm < self.rpm_limit
+    }
+}
+struct Turbo  {
+    spool: f32,
+    boost: f32,
+    spool_rate: f32,
+}
+impl Turbo {
+    fn spool(&mut self, airflow: f32, dt: f32) {
+        self.spool += (airflow - self.spool) * self.spool_rate * dt;
+    }
+    fn boost(&self) -> f32 {
+        self.spool * self.boost
     }
 }
 
