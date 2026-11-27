@@ -1,154 +1,164 @@
 use crate::vectors::*;
 use ggez::*;
-
 const GRAVITY: f32 = 9.80665;
-pub struct Car {
-    pub transform: Transform,
-    pub velocity: f32,
-    
-    pub engine_revs: f32,
-    pub turbo_spool: f32,
-    pub gear: usize,
-    pub stats: CarStats,
+struct Car {
+    transform: Transform,
+    velocity: f32,
 
-    pub image: graphics::Image,
-}
-pub struct CarStats {
-    pub tyre_friction_coeff: f32,
-    pub base_engine_power: f32,
+    hitpoints: Vec<Vec2>, 
 
-    pub rev_limit: f32,
-    pub turbo_boost: f32,
-    pub turbo_spool_rate: f32,
-    pub super_pressure: f32,
-    
-    pub gear_ratios: Vec<f32>,
-
-    pub mass: f32,
-    pub drag_coeff: f32,
-    pub turn_radius: f32,
-    pub downforce_coeff: f32,
-    pub hitpoints: Vec<Vec2>, 
-
-    pub top_speed: f32,
+    engine: Engine,
+    gears: GearBox,
+    tyres: Tyres,
+    aero: Aero,
+    mass: f32,
+    turn_radius: f32,
 }
 
 impl Car {
-    pub fn update(&mut self, controls: CarControl, dt: f32) -> bool {
+    fn update(&mut self, controls: CarControl, dt: f32) -> bool {
+        if controls.downshift { self.try_downshift(); } 
+        if controls.upshift { self.try_upshift(); }
+
         let velocity_sq = self.velocity * self.velocity;
 
-        let normal_reaction = self.stats.mass * GRAVITY + self.stats.downforce_coeff * velocity_sq;
-        let grip = self.stats.tyre_friction_coeff * normal_reaction;
+        let grip = self.tyres.friction_coeff * (self.mass * GRAVITY + self.aero.downforce_coeff * velocity_sq);
 
-        if controls.downshift {
-            if self.gear > 0 && self.velocity / self.stats.gear_ratios[self.gear - 1] < self.stats.rev_limit {
-                self.gear -= 1;
-            }
-        } 
-        if controls.upshift {
-            if self.gear < self.stats.gear_ratios.len() - 1 {
-                self.gear += 1;
-            }
-        }
+        let travel_dir = if self.velocity == 0.0 { 0.0 } else { self.velocity.signum() };
 
-        let power_output;
-        if self.gear > 0 {
-            let intake_pressure = 1.0 + self.stats.super_pressure + self.turbo_spool * self.stats.turbo_boost;
-            let airflow = controls.accelerate * self.engine_revs.max(1000.0) * intake_pressure;
-            power_output = airflow * self.stats.base_engine_power;
-            self.turbo_spool += (airflow - self.turbo_spool) * self.stats.turbo_spool_rate * dt;
-        }
-        else { power_output = 0.0; }
+        let mut longitudinal_force_delta = 0.0;
 
-        let mut velocity_force_delta = 0.0;
-
-        let travel_dir = if self.velocity == 0.0 { 0.0 } else  { self.velocity.signum() };
-
-        velocity_force_delta -= travel_dir * controls.brake * grip;
-        velocity_force_delta -= travel_dir * velocity_sq * self.stats.drag_coeff;
-        velocity_force_delta += power_output; 
+        longitudinal_force_delta -= travel_dir * controls.brake * grip;
+        longitudinal_force_delta -= travel_dir * self.aero.drag_coeff * velocity_sq;
+        longitudinal_force_delta += self.engine.update(controls.throttle, dt);
 
         let mut lateral_force_delta = 0.0;
 
         let mut turn_radius = 0.0;
         if controls.turn != 0.0 {
-            turn_radius = self.stats.turn_radius / controls.turn;
+            turn_radius = self.turn_radius / controls.turn;
             lateral_force_delta = velocity_sq / turn_radius;
         }
 
-        let used_grip_sq = lateral_force_delta * lateral_force_delta + velocity_force_delta * velocity_force_delta;
+        let used_grip_sq = lateral_force_delta * lateral_force_delta + longitudinal_force_delta * longitudinal_force_delta;
         let has_slid = used_grip_sq > grip * grip;
         if has_slid {
             let used_grip = used_grip_sq.sqrt();
             let multiplier = grip / used_grip;
 
-            velocity_force_delta *= multiplier;
+            longitudinal_force_delta *= multiplier;
             lateral_force_delta *= multiplier;
 
             turn_radius = velocity_sq / lateral_force_delta;
         }
 
-        let rotation_delta = if turn_radius != 0.0 { self.velocity / turn_radius } else { 0.0 };
-
-        self.velocity += (velocity_force_delta  / self.stats.mass) * dt;
+        self.velocity += (longitudinal_force_delta  / self.mass) * dt;
         self.velocity = self.velocity.max(0.0);
-        self.transform.bearing += rotation_delta * dt;
-
-        self.transform.position += Vec2::from_bearing(self.transform.bearing) * self.velocity * dt;
-
-        let gear_ratio = self.stats.gear_ratios[self.gear];
-
-        self.engine_revs = self.velocity / gear_ratio;
-        if self.engine_revs > self.stats.rev_limit {
-            self.velocity = gear_ratio * self.stats.rev_limit;
-            self.engine_revs = self.stats.rev_limit;
+        if turn_radius != 0.0 {
+            self.transform.bearing += self.velocity / turn_radius * dt;
         }
+        self.limit_rpm();
+        self.update_position(dt);
         has_slid
     }
-    pub fn draw(&self, canvas: &mut graphics::Canvas) {
-        canvas.draw(&self.image, graphics::DrawParam::default()
-            .dest([self.transform.position.x, 1080.0 - self.transform.position.y])
-            .offset([0.5, 0.5])
-            .scale([1.0, 1.0])
-            .rotation(self.transform.bearing),
-        );
+    fn try_upshift(&mut self) -> bool {
+        self.try_shift(1)
     }
-    pub fn f2004(ctx: &mut Context, position: Transform) -> Self {
-        Car {
-            transform: position,
-            velocity: 0.0,
-            engine_revs: 0.0,
-            turbo_spool: 0.0,
-            gear: 0,
-            stats: CarStats::f2004(),
-            image: graphics::Image::from_path(ctx, "/car.png").unwrap(),
+    fn try_downshift(&mut self) -> bool {
+        self.try_shift(-1)
+    }
+    fn try_shift(&mut self, change: i32) -> bool {
+        let new_gear = self.gears.gear + change as usize;
+        let new_rpm = self.velocity / self.gears.get_ratio(new_gear);
+
+        if self.engine.validate_rpm(new_rpm) || new_gear == 1 {
+            self.gears.shift(change)
         }
+        else { false }
+    }
+    fn limit_rpm(&mut self) {
+        let gear_ratio = self.gears.get_current_ratio();
+        self.engine.rpm = self.velocity / gear_ratio;
+        if self.engine.rpm > self.engine.rpm_limit {
+            self.velocity = gear_ratio * self.engine.rpm_limit;
+            self.engine.rpm = self.engine.rpm_limit;
+        }
+    }
+    fn update_position(&mut self, dt: f32) {
+        self.transform.position += Vec2::from_bearing(self.transform.bearing) * self.velocity * dt;
+
+    }
+
+
+}
+
+struct Engine {
+    base_power: f32,
+    rpm: f32,
+    rpm_limit: f32,
+    idle_rpm: f32,
+
+    turbo_spool: f32,
+    turbo_boost: f32,
+    turbo_spool_rate: f32,
+
+    super_pressure: f32,
+}
+
+impl Engine {
+    fn update(&mut self, throttle: f32, dt: f32) -> f32 {
+        let intake_pressure = 1.0 + self.super_pressure + self.turbo_spool * self.turbo_boost;
+        let airflow = throttle * self.rpm.clamp(self.idle_rpm, self.rpm_limit) * intake_pressure;
+        self.turbo_spool += (airflow - self.turbo_spool) * self.turbo_spool_rate * dt;
+        airflow * self.base_power
+    }
+    fn validate_rpm(&self, rpm: f32) -> bool {
+        self.idle_rpm < rpm && rpm < self.rpm_limit
     }
 }
 
-impl CarStats {
-    pub fn f2004() -> Self {
-        CarStats {
-            tyre_friction_coeff: 1000.0,
-            base_engine_power: 250.0,
-            rev_limit: 20000.0,
-            turbo_boost: 0.0,
-            turbo_spool_rate: 0.0,
-            super_pressure: 0.0,
-            gear_ratios: vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
-            mass: 600.0,
-            drag_coeff: 1.0 / 2000.0,
-            turn_radius: 50.0,
-            downforce_coeff: 1.0 / 250.0,
-            hitpoints: vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 11.0, y: 0.0 }, Vec2 { x: -11.0, y: 0.0 }, Vec2 { x: 11.0, y: 40.0 }, Vec2 { x: -11.0, y: 40.0 }],
-            top_speed: (250.0 * 2000.0 as f32).sqrt(),
+struct GearBox {
+    ratios: Vec<f32>,
+    gear: usize,
+}
+
+impl GearBox {
+    fn get_ratio(&self, gear: usize) -> f32 {
+        if gear < 0 {
+            self.ratios[0]
+        }
+        else if gear < self.ratios.len() {
+            self.ratios[gear]
+        }
+        else {
+            self.ratios[self.ratios.len() - 1]
         }
     }
+    fn get_current_ratio(&self) -> f32 {
+        self.ratios[self.gear]
+    }
+    fn shift(&mut self, change: i32) -> bool {
+        let new_gear = self.gear as i32 + change;
+        if 0 <= new_gear && new_gear < self.ratios.len()  as i32 {
+            self.gear = (self.gear as i32 + change) as usize;
+            true
+        }
+        else { false }
+    }
 }
-pub struct CarControl {
-    pub turn: f32,
-    pub accelerate: f32,
-    pub brake: f32,
-    pub upshift: bool,
-    pub downshift: bool,
+
+struct Aero {
+    drag_coeff: f32,
+    downforce_coeff: f32,
+}
+struct Tyres {
+    friction_coeff: f32,
+}
+
+struct CarControl {
+    turn: f32,
+    throttle: f32,
+    brake: f32,
+    upshift: bool,
+    downshift: bool,
 }

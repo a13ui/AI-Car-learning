@@ -286,9 +286,5 @@ pub fn keyboard_control(keyboard: &mut KeyboardContext) -> CarControl {
 }
 
 pub fn is_key_down(keyboard: &mut KeyboardContext, key: &str) -> bool {
-    let out = keyboard.is_logical_key_pressed(&Key::Character(SmolStr::new_inline(key)));
-    if out {
-        println!("{key}");
-    }
-    out
+    keyboard.is_logical_key_pressed(&Key::Character(SmolStr::new_inline(key)))
 }

@@ -3,6 +3,7 @@ advance purging/repopulation
 training on multiple tracks.
 track images auto saved
 network visulisation
+restructure car struct to be more natural
 
 Doing:
 engine realism development
